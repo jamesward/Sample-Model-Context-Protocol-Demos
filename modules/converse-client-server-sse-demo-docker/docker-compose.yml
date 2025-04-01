@@ -1,0 +1,41 @@
+services:
+  mcp-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      - NODE_ENV=development
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_REGION
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+    volumes:
+      - ./server/src:/app/src
+    networks:
+      - mcp-network
+
+  mcp-client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      target: build
+    environment:
+      - NODE_ENV=development
+      - MCP_SSE_URL=http://mcp-server:8000/sse
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_REGION
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+    volumes:
+      - ./client/src:/app/src
+    networks:
+      - mcp-network
+    stdin_open: true
+    tty: true
+
+networks:
+  mcp-network:
+    driver: bridge
