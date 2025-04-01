@@ -1,10 +1,9 @@
 # MCP Client Bedrock Demo (stdio)
 
-This project demonstrates an interactive CLI application that uses Model Context Protocol (MCP) with Amazon Bedrock's Converse API. It showcases how to build a chat interface with tool integration using the stdio communication protocol.
+This project demonstrates an interactive CLI application that uses Model Context Protocol (MCP) with [Amazon Bedrock's Converse AP](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html?trk=64e03f01-b931-4384-846e-db0ba9fa89f5&sc_channel=code). It showcases how to build a chat interface with tool integration using the stdio communication protocol.
 
 ```mermaid
 flowchart LR
-
     User["User"] --> Client["MCP Client"] --"MCP/stdio"--> Server["MCP Server"]
 ```
 
@@ -18,8 +17,12 @@ flowchart LR
 ## Prerequisites
 
 - Python 3.8 or higher
-- AWS account with Bedrock access (this code uses 'anthropic.claude-3-5-sonnet-20241022-v2:0')
+- AWS account with Bedrock access (this code uses 'anthropic.claude-3-5-sonnet-20241022-v2:0') 
+- [Request Model Access Guide](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html?trk=64e03f01-b931-4384-846e-db0ba9fa89f5&sc_channel=code)
 - AWS credentials configured locally
+- An AWS Account with appropriate permissions
+
+
 - `pip` package manager
 
 ## Project Structure
