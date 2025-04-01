@@ -2,20 +2,23 @@
 
 ## Run Locally
 
-```
-./gradlew bootRun
-```
+1. [Install Gradle](https://gradle.org/install/)
+1. Run the application:
+    ```
+    gradle bootRun
+    ```
 
 ## Deploy on ECS
 
 Prereqs:
 - [Create ECR Repo](https://us-east-1.console.aws.amazon.com/ecr/private-registry/repositories/create?region=us-east-1)
 - [Auth `docker` to ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/registry_auth.html)
+- [Install rain](https://github.com/aws-cloudformation/rain)
 
 ```
 export ECR_REPO=<your account id>.dkr.ecr.us-east-1.amazonaws.com/<your repo path>
 
-./gradlew bootBuildImage --imageName=$ECR_REPO
+gradle bootBuildImage --imageName=$ECR_REPO
 
 docker push $ECR_REPO:latest
 

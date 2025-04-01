@@ -47,14 +47,16 @@ flowchart LR
 
 ## Run Locally
 
+[Install Gradle](https://gradle.org/install/)
+
 Start the MCP Server:
 ```
-./gradlew :server:bootRun
+gradle :server:bootRun
 ```
 
 Start the MCP Client / Agent:
 ```
-./gradlew :client:bootRun
+gradle :client:bootRun
 ```
 
 Make a request to the server REST endpoint:
