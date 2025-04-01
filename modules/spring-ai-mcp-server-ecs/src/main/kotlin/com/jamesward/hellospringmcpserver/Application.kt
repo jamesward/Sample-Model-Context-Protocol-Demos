@@ -11,12 +11,12 @@ import org.springframework.stereotype.Service
 @SpringBootApplication
 class Application {
     @Bean
-    fun weatherTools(weatherService: WeatherService): MethodToolCallbackProvider =
-        MethodToolCallbackProvider.builder().toolObjects(weatherService).build()
+    fun myTools(helloService: HelloService): MethodToolCallbackProvider =
+        MethodToolCallbackProvider.builder().toolObjects(helloService).build()
 }
 
 @Service
-class WeatherService {
+class HelloService {
 
     @Tool(description = "says hello to someone")
     fun sayHello(@ToolParam(description = "name of person") name: String): String =
