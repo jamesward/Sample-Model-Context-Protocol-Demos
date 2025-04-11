@@ -1,15 +1,12 @@
 package com.example.adoptions;
 
-import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
-import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.PromptChatMemoryAdvisor;
-import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
+import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -22,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -40,17 +38,8 @@ public class AdoptionsApplication {
 class ConversationalConfiguration {
 
     @Bean
-    McpSyncClient mcpClient(@Value("${scheduling-service.url}") String url) {
-        var mcpClient = McpClient
-                .sync(new HttpClientSseClientTransport(url))
-                .build();
-        mcpClient.initialize();
-        return mcpClient;
-    }
-
-    @Bean
     ChatClient chatClient(
-            McpSyncClient mcpSyncClient,
+            List<McpSyncClient> mcpSyncClients,
             ChatClient.Builder builder) {
 
         var system = """
@@ -67,7 +56,7 @@ class ConversationalConfiguration {
                 """;
         return builder
                 .defaultSystem(system)
-                .defaultTools(new SyncMcpToolCallbackProvider(mcpSyncClient))
+                .defaultTools(new SyncMcpToolCallbackProvider(mcpSyncClients))
                 .build();
     }
 
