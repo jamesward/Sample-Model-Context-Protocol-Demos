@@ -10,14 +10,14 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 
+
 @SpringBootApplication
 class Application {
     @Bean
-    fun chatClient(mcpSyncClients: List<McpSyncClient>, builder: ChatClient.Builder): ChatClient {
-        return builder
-            .defaultTools(SyncMcpToolCallbackProvider(mcpSyncClients))
+    fun chatClient(mcpSyncClients: List<McpSyncClient>, builder: ChatClient.Builder): ChatClient =
+        builder
+            .defaultToolCallbacks(SyncMcpToolCallbackProvider(mcpSyncClients))
             .build()
-    }
 }
 
 data class Prompt(val question: String)

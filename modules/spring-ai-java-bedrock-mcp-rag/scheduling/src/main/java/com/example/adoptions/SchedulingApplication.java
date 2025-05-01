@@ -36,7 +36,7 @@ class DogAdoptionAppointmentScheduler {
     @Tool(description = "schedule an appointment to adopt a dog" +
             " at the Pooch Palace dog adoption agency")
     String scheduleDogAdoptionAppointment(
-            @ToolParam(description = "the id of the dog") int id,
+            @ToolParam(description = "the id of the dog") String id,
             @ToolParam(description = "the name of the dog") String name) {
         var instant = Instant.now().plus(3, ChronoUnit.DAYS);
         System.out.println("confirming the appointment: " + instant + " for dog " + id + " named " + name);

@@ -2,9 +2,9 @@ package com.example.adoptions;
 
 import io.modelcontextprotocol.client.McpSyncClient;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.PromptChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
-import org.springframework.ai.chat.memory.InMemoryChatMemory;
+import org.springframework.ai.chat.client.advisor.vectorstore.VectorStoreChatMemoryAdvisor;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.SpringApplication;
@@ -20,8 +20,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author James Ward
@@ -40,7 +38,8 @@ class ConversationalConfiguration {
     @Bean
     ChatClient chatClient(
             List<McpSyncClient> mcpSyncClients,
-            ChatClient.Builder builder) {
+            ChatClient.Builder builder,
+            VectorStore vectorStore) {
 
         var system = """
                 You are an AI powered assistant to help people adopt a dog from the adoption\s
@@ -51,12 +50,14 @@ class ConversationalConfiguration {
                 
                 If the response involves a timestamp, be sure to convert it to something human-readable.
                 
-                Do _not_ include any indication of what you're thinking. Nothing should be sent to the client between <thinking> tags. 
+                Do _not_ include any indication of what you're thinking. Nothing should be sent to the client between <thinking> tags.
                 Just give the answer.
                 """;
+
         return builder
                 .defaultSystem(system)
-                .defaultTools(new SyncMcpToolCallbackProvider(mcpSyncClients))
+                .defaultToolCallbacks(new SyncMcpToolCallbackProvider(mcpSyncClients))
+                .defaultAdvisors(VectorStoreChatMemoryAdvisor.builder(vectorStore).build())
                 .build();
     }
 
@@ -75,7 +76,6 @@ class ConversationalController {
 
     private final ChatClient chatClient;
     private final QuestionAnswerAdvisor questionAnswerAdvisor;
-    private final Map<String, PromptChatMemoryAdvisor> chatMemory = new ConcurrentHashMap<>();
 
     ConversationalController(VectorStore vectorStore, ChatClient chatClient) {
         this.chatClient = chatClient;
@@ -84,12 +84,11 @@ class ConversationalController {
 
     @PostMapping("/{id}/inquire")
     String inquire(@PathVariable String id, @RequestParam String question) {
-        var promptChatMemoryAdvisor = chatMemory
-                .computeIfAbsent(id, _ -> PromptChatMemoryAdvisor.builder(new InMemoryChatMemory()).build());
         return chatClient
                 .prompt()
                 .user(question)
-                .advisors(questionAnswerAdvisor, promptChatMemoryAdvisor)
+                .advisors(questionAnswerAdvisor)
+                .advisors(a -> a.param(AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY, id))
                 .call()
                 .content();
     }
