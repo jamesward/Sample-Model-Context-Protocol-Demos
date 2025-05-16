@@ -45,22 +45,36 @@ class AgentConfiguration {
 }
 
 @Service
-class MyTools {
-
+class EmployeeQueries {
     private final ChatClient chatClient;
 
-    MyTools(ChatClient chatClient) {
+    EmployeeQueries(ChatClient chatClient) {
         this.chatClient = chatClient;
     }
 
-    @Tool(description = "answers questions related to our employees")
-    String employeeQueries(@ToolParam(description = "the query about the employees", required = true) String query) {
+    String query(String question) {
         return chatClient
                 .prompt()
-                .system("abbreviate first names with first letter and a period")
-                .user(query)
+                .system("abbreviate employee first names with first letter and a period")
+                .user(question)
                 .call()
                 .content();
+    }
+
+}
+
+@Service
+class MyTools {
+
+    private final EmployeeQueries employeeQueries;
+
+    MyTools(EmployeeQueries employeeQueries) {
+        this.employeeQueries = employeeQueries;
+    }
+
+    @Tool(description = "answers questions related to our employees")
+    String inquire(@ToolParam(description = "the query about the employees", required = true) String question) {
+        return employeeQueries.query(question);
     }
 
 }

@@ -8,6 +8,7 @@ import io.modelcontextprotocol.spec.McpServerTransportProvider;
 import org.springframework.ai.mcp.server.autoconfigure.McpServerAutoConfiguration;
 import org.springframework.ai.mcp.server.autoconfigure.McpServerProperties;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +22,7 @@ import java.util.function.BiConsumer;
 public class MyMcpServerConfiguration {
 
     @Bean
+    @ConditionalOnProperty(name = "spring.ai.mcp.server.enabled", havingValue = "true")
     McpSyncServer mcpSyncServer(McpServerTransportProvider transportProvider,
                                 McpServerProperties serverProperties,
                                 ObjectProvider<List<McpServerFeatures.SyncToolSpecification>> tools,
