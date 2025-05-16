@@ -31,7 +31,7 @@ sequenceDiagram
 
 ## Setup
 
-1. Setup Bedrock in the AWS Console, [request access to Nova Lite](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess)
+1. Setup Bedrock in the AWS Console, [request access to Nova Pro](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess)
 1. [Setup auth for local development](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-authentication.html)
 
 ## Run Locally
@@ -65,8 +65,12 @@ curl -X POST --location "http://localhost:8080/inquire" \
 ## Run on AWS
 
 Prereqs:
-- [Create an ECR Repo named `spring-ai-mcp-inter-agent-ecs-server` and one named `spring-ai-mcp-inter-agent-ecs-client`](https://us-east-1.console.aws.amazon.com/ecr/private-registry/repositories/create?region=us-east-1)
+- [Create an ECR Repos](https://us-east-1.console.aws.amazon.com/ecr/private-registry/repositories/create?region=us-east-1)
+  - `spring-ai-mcp-inter-agent-ecs-server`
+  - `spring-ai-mcp-inter-agent-ecs-client-server`
+  - `spring-ai-mcp-inter-agent-ecs-client`
 - [Auth `docker` to ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/registry_auth.html)
+  - i.e. `aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REPO`
 - [Install Rain](https://github.com/aws-cloudformation/rain)
 
 Build and push the MCP Server & MCP Client to ECR:
@@ -75,6 +79,9 @@ export ECR_REPO=<your account id>.dkr.ecr.us-east-1.amazonaws.com
 
 ./mvnw -pl server spring-boot:build-image -Dspring-boot.build-image.imageName=$ECR_REPO/spring-ai-mcp-inter-agent-ecs-server
 docker push $ECR_REPO/spring-ai-mcp-inter-agent-ecs-server:latest
+
+./mvnw -pl client-server spring-boot:build-image -Dspring-boot.build-image.imageName=$ECR_REPO/spring-ai-mcp-inter-agent-ecs-client-server
+docker push $ECR_REPO/spring-ai-mcp-inter-agent-ecs-client-server:latest
 
 ./mvnw -pl client spring-boot:build-image -Dspring-boot.build-image.imageName=$ECR_REPO/spring-ai-mcp-inter-agent-ecs-client
 docker push $ECR_REPO/spring-ai-mcp-inter-agent-ecs-client:latest
@@ -91,6 +98,3 @@ curl -X POST --location "http://YOUR_LB_HOST/inquire" \
 -H "Content-Type: application/json" \
 -d '{"question": "Get employees that have skills related to Java, but not Java"}'
 ```
-
-TODO:
-- Update `infra.cfn`

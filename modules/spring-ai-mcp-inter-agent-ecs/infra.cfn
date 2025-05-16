@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Spring AI MCP Agent
+Description: Spring AI MCP Inter-Agent
 
 Resources:
   ApplicationVPC:
@@ -72,20 +72,7 @@ Resources:
       LogGroupName: !Sub /ecs/${AWS::StackName}
       RetentionInDays: 1
 
-  ServerExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-
-  ClientExecutionRole:
+  ExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -120,17 +107,6 @@ Resources:
                   - bedrock:InvokeModel
                 Resource:
                   - arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0
-#      Policies:
-#        - PolicyName: ServiceConnectPolicy
-#          PolicyDocument:
-#            Version: '2012-10-17'
-#            Statement:
-#              - Effect: Allow
-#                Action:
-#                  - servicediscovery:DiscoverInstances
-#                  - servicediscovery:ListNamespaces
-#                  - servicediscovery:ListServices
-#                Resource: '*'
 
   MCPServerTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -141,15 +117,43 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !GetAtt ServerExecutionRole.Arn
-#      TaskRoleArn: !GetAtt TaskRole.Arn
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
       ContainerDefinitions:
-        - Name: mcp-agent-spring-ai-server
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/mcp-agent-spring-ai-server:latest
+        - Name: spring-ai-mcp-inter-agent-ecs-server
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/spring-ai-mcp-inter-agent-ecs-server:latest
+          PortMappings:
+            - Name: http
+              ContainerPort: 8082
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  MCPClientServerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-task
+      Cpu: '256'
+      Memory: '1024'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: spring-ai-mcp-inter-agent-ecs-client-server
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/spring-ai-mcp-inter-agent-ecs-client-server:latest
           PortMappings:
             - Name: http
               ContainerPort: 8081
               Protocol: tcp
+          Environment:
+            - Name: MCP_SERVICE_URL
+              Value: !Sub http://mcp-server.${AWS::StackName}:8082
+              # todo: better way to get service url
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -166,16 +170,16 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: !GetAtt ClientExecutionRole.Arn
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
       TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
-        - Name: mcp-agent-spring-ai-client
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/mcp-agent-spring-ai-client:latest
+        - Name: spring-ai-mcp-inter-agent-ecs-client
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/spring-ai-mcp-inter-agent-ecs-client:latest
           PortMappings:
             - ContainerPort: 8080
           Environment:
             - Name: MCP_SERVICE_URL
-              Value: !Sub http://mcp-server.${AWS::StackName}:8081
+              Value: !Sub http://mcp-client-server.${AWS::StackName}:8081
               # todo: better way to get service url
           LogConfiguration:
             LogDriver: awslogs
@@ -184,22 +188,22 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
+  ServiceConnectNamespace:
+    Type: AWS::ServiceDiscovery::HttpNamespace
+    Properties:
+      Name: !Sub ${AWS::StackName}
+      Description: "Namespace for MCP Agent Spring AI services"
+
   ServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for container
       VpcId: !Ref ApplicationVPC
       SecurityGroupIngress:
-        - FromPort: 8081
-          ToPort: 8081
+        - FromPort: 8082
+          ToPort: 8082
           IpProtocol: tcp
-          SourceSecurityGroupId: !Ref ClientSecurityGroup
-
-  ServiceConnectNamespace:
-    Type: AWS::ServiceDiscovery::HttpNamespace
-    Properties:
-      Name: !Sub ${AWS::StackName}
-      Description: "Namespace for MCP Agent Spring AI services"
+          SourceSecurityGroupId: !Ref ClientServerSecurityGroup
 
   MCPServerECSService:
     Type: AWS::ECS::Service
@@ -216,12 +220,60 @@ Resources:
           - PortName: http
             DiscoveryName: mcp-server
             ClientAliases:
-              - Port: 8081
+              - Port: 8082
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: ENABLED
           SecurityGroups:
             - !Ref ServerSecurityGroup
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+
+  ClientServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for container
+      VpcId: !Ref ApplicationVPC
+      SecurityGroupIngress:
+        - FromPort: 8081
+          ToPort: 8081
+          IpProtocol: tcp
+          SourceSecurityGroupId: !Ref ClientSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0  # Bedrock endpoints are public AWS services
+          Description: "Allow HTTPS traffic to Amazon Bedrock"
+        - IpProtocol: tcp
+          FromPort: 8082
+          ToPort: 8082
+          CidrIp: 0.0.0.0/0
+          Description: "Allow traffic to MCP Server on port 8082"
+
+  MCPClientServerECSService:
+    Type: AWS::ECS::Service
+    DependsOn: MCPServerECSService
+    Properties:
+      ServiceName: !Sub ${AWS::StackName}-client-server
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref MCPClientServerTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      ServiceConnectConfiguration:
+        Enabled: true
+        Namespace: !GetAtt ServiceConnectNamespace.Arn
+        Services:
+          - PortName: http
+            DiscoveryName: mcp-client-server
+            ClientAliases:
+              - Port: 8081
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ClientServerSecurityGroup
           Subnets:
             - !Ref PrivateSubnet1
             - !Ref PrivateSubnet2
@@ -237,23 +289,22 @@ Resources:
           IpProtocol: tcp
           SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
       SecurityGroupEgress:
-        # Allow traffic to Bedrock service
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0  # Bedrock endpoints are public AWS services
           Description: "Allow HTTPS traffic to Amazon Bedrock"
-        # Allow traffic to MCP Server on port 8081
         - IpProtocol: tcp
           FromPort: 8081
           ToPort: 8081
           CidrIp: 0.0.0.0/0
           Description: "Allow traffic to MCP Server on port 8081"
 
-
   MCPClientECSService:
     Type: AWS::ECS::Service
-    DependsOn: LoadBalancerListener
+    DependsOn:
+    - LoadBalancerListener
+    - MCPClientServerECSService
     Properties:
       ServiceName: !Sub ${AWS::StackName}-client
       Cluster: !Ref ECSCluster
@@ -272,7 +323,7 @@ Resources:
             - !Ref PrivateSubnet1
             - !Ref PrivateSubnet2
       LoadBalancers:
-        - ContainerName: "mcp-agent-spring-ai-client"
+        - ContainerName: "spring-ai-mcp-inter-agent-ecs-client"
           ContainerPort: 8080
           LoadBalancerName: !Ref AWS::NoValue
           TargetGroupArn: !Ref TargetGroup

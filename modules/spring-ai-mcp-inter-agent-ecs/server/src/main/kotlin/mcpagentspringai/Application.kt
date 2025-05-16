@@ -20,13 +20,13 @@ data class Employee(val name: String, val skills: List<String>)
 @Service
 class MyTools {
 
-    @Tool(description = "employees have skills. this returns all possible skills our employees have")
+    @Tool(description = "the list of all possible employee skills")
     fun getSkills(): Set<String> = run {
         println("getSkills")
         SampleData.employees.flatMap { it.skills }.toSet()
     }
 
-    @Tool(description = "get the employees that have a specific skill")
+    @Tool(description = "the employees that have a specific skill")
     fun getEmployeesWithSkill(@ToolParam(description = "skill") skill: String): List<Employee> = run {
         println("getEmployeesWithSkill $skill")
         SampleData.employees.filter { employee ->
