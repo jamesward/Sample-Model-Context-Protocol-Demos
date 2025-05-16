@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Application {
 
@@ -74,16 +75,16 @@ public class Application {
 
         System.out.println(query);
 
-        var transport = new HttpClientSseClientTransport("https://mcp-test.jamesward.com");
+        var transport = HttpClientSseClientTransport.builder("https://mcp-test.jamesward.com").build();
 
         try (var mcpClient = McpClient.sync(transport).build()) {
             var mcpServerInfo = mcpClient.initialize();
 
             var toolConfig = mcpToolsToConverseTools(mcpClient.listTools().tools());
 
-            var system = SystemContentBlock.fromText(mcpServerInfo.instructions());
+            var system = mcpServerInfo.instructions() != null ? SystemContentBlock.fromText(mcpServerInfo.instructions()) : null;
 
-            var modelId = "amazon.nova-lite-v1:0";
+            var modelId = "amazon.nova-micro-v1:0";
 
             var messages = new ArrayList<Message>();
 
@@ -100,12 +101,12 @@ public class Application {
                     .build()) {
 
                 while (true) {
-                    var request = ConverseRequest.builder()
+                    var requestBuilder = ConverseRequest.builder()
                             .modelId(modelId)
-                            .system(system)
                             .messages(messages)
-                            .toolConfig(toolConfig)
-                            .build();
+                            .toolConfig(toolConfig);
+
+                    var request = system != null ? requestBuilder.system(system).build() : requestBuilder.build();
 
                     var response = bedrockClient.converse(request);
 
@@ -116,7 +117,7 @@ public class Application {
                     });
 
                     if (response.stopReason() == StopReason.TOOL_USE) {
-                        for (var contentBlock : response.output().message().content()) {
+                        List<ContentBlock> allResultContents = response.output().message().content().stream().flatMap(contentBlock -> {
                             if (contentBlock.toolUse() != null) {
                                 var input = contentBlock.toolUse().input().asMap().entrySet().stream()
                                         .map(e -> Map.entry(e.getKey(), e.getValue().unwrap()))
@@ -134,13 +135,12 @@ public class Application {
                                 // todo: isError
 
                                 var resultContents = callToolResult.content().stream().map(content ->
-                                    switch (content) {
-                                        case McpSchema.TextContent textContent -> ToolResultContentBlock.builder()
-                                                .text(textContent.text())
-                                                .build();
-                                        default ->
-                                            ToolResultContentBlock.builder().build();
-                                    }
+                                        switch (content) {
+                                            case McpSchema.TextContent textContent -> ToolResultContentBlock.builder()
+                                                    .text(textContent.text())
+                                                    .build();
+                                            default -> ToolResultContentBlock.builder().build();
+                                        }
                                 ).toList();
 
                                 var toolResultBlock = ToolResultBlock.builder()
@@ -148,14 +148,19 @@ public class Application {
                                         .content(resultContents)
                                         .build();
 
-                                var resultMessage = Message.builder()
-                                        .role(ConversationRole.USER)
-                                        .content(ContentBlock.fromToolResult(toolResultBlock))
-                                        .build();
-
-                                messages.add(resultMessage);
+                                return Stream.of(ContentBlock.fromToolResult(toolResultBlock));
                             }
-                        }
+                            else {
+                                return Stream.of();
+                            }
+                        }).toList();
+
+                        var resultMessage = Message.builder()
+                                .role(ConversationRole.USER)
+                                .content(allResultContents)
+                                .build();
+
+                        messages.add(resultMessage);
                     }
                     else if (response.stopReason() == StopReason.END_TURN) {
                         break;
