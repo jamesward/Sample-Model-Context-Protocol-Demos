@@ -5,7 +5,6 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.mcp.McpToolUtils;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
-import org.springframework.ai.mcp.server.autoconfigure.McpServerAutoConfiguration;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
@@ -17,7 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-@SpringBootApplication(exclude = {McpServerAutoConfiguration.class})
+@SpringBootApplication
 public class Application {
     public static void main(String[] args) {
         SpringApplication.run(Application.class, args);
@@ -39,6 +38,7 @@ class AgentConfiguration {
     ChatClient chatClient(List<McpSyncClient> mcpSyncClients, ChatClient.Builder builder) {
         return builder
                 .defaultToolCallbacks(new SyncMcpToolCallbackProvider(mcpSyncClients))
+                .defaultSystem("abbreviate employee first names with first letter and a period")
                 .build();
     }
 
@@ -55,7 +55,6 @@ class EmployeeQueries {
     String query(String question) {
         return chatClient
                 .prompt()
-                .system("abbreviate employee first names with first letter and a period")
                 .user(question)
                 .call()
                 .content();
