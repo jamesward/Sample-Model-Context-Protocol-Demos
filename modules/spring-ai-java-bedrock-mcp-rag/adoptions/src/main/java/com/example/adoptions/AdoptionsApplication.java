@@ -2,9 +2,9 @@ package com.example.adoptions;
 
 import io.modelcontextprotocol.client.McpSyncClient;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.VectorStoreChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.SpringApplication;
@@ -88,7 +88,7 @@ class ConversationalController {
                 .prompt()
                 .user(question)
                 .advisors(questionAnswerAdvisor)
-                .advisors(a -> a.param(AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY, id))
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, id))
                 .call()
                 .content();
     }

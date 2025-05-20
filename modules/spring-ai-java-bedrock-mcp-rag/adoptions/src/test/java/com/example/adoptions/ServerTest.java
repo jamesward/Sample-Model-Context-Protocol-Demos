@@ -9,6 +9,9 @@ import org.springframework.web.client.RestClient;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
@@ -26,12 +29,12 @@ public class ServerTest {
 
         var schedule = inquire("fantastic. when could i schedule an appointment to adopt Prancer, from the London location?");
         assertThat(schedule.getStatusCode().is2xxSuccessful()).isTrue();
-        var threeDays = Instant.now().plus(Duration.ofDays(3));
-        var futureDate = threeDays.atZone(ZoneId.systemDefault()).toLocalDate();
-        var threeDaysNumber = futureDate.getDayOfMonth();
-        assertThat(schedule.getBody()).contains(threeDaysNumber + "");
-        System.out.println(schedule.getBody());
+        var utcNow = ZonedDateTime.now(ZoneId.of("UTC"));
+        var utcPlusThreeDays = utcNow.plusDays(3);
+        var formatter = DateTimeFormatter.ofPattern("MMMM d", Locale.ENGLISH);
+        String formattedDate = utcPlusThreeDays.format(formatter);
 
+        assertThat(schedule.getBody()).contains(formattedDate);
     }
 
     private ResponseEntity<String> inquire(String question) {
