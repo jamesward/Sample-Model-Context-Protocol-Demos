@@ -44,6 +44,7 @@ flowchart LR
 
 1. Setup Bedrock in the AWS Console, [request access to claude-sonnet-4](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess)
 1. [Setup auth for local development](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-authentication.html)
+1. Verify your AWS configuration by running: `./aws-checks.sh`
 
 ## Run Locally
 
@@ -54,8 +55,18 @@ Start the MCP Server:
 
 Start the MCP Client / Agent:
 ```
-SPRING_PROFILES_ACTIVE=bedrock ./mvnw -pl client spring-boot:run
+# Use the provided shell script to ensure AWS credentials are properly exported
+./run-client.sh
+
+# Note: Direct maven command may fail with AWS credential errors because 
+# the Spring Boot Maven plugin doesn't inherit AWS environment variables properly.
+# The run-client.sh script explicitly exports AWS credentials before running.
 ```
+
+### Troubleshooting
+
+- **AWS Credentials Error**: If you see "Missing required AWS_ACCESS_KEY_ID" or similar errors when running the client, use the `run-client.sh` script instead of running Maven directly. The script exports AWS credentials from your configured profile.
+- **Region Configuration**: The application requires AWS region `us-east-1` for Bedrock model access (configured in application.properties)
 
 Make a request to the server REST endpoint:
 
@@ -73,24 +84,34 @@ curl -X POST --location "http://localhost:8080/inquire" \
 ## Run on AWS
 
 Prereqs:
-- [Create an ECR Repo named `mcp-agent-spring-ai-server` and one named `mcp-agent-spring-ai-client`](https://us-east-1.console.aws.amazon.com/ecr/private-registry/repositories/create?region=us-east-1)
-- [Auth `docker` to ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/registry_auth.html)
 - [Install Rain](https://github.com/aws-cloudformation/rain)
+- Ensure Docker is running
 
-Build and push the MCP Server & MCP Client to ECR:
+Setup ECR repositories and authenticate Docker:
 ```
-export ECR_REPO=<your account id>.dkr.ecr.us-east-1.amazonaws.com
-
-./mvnw -pl server spring-boot:build-image -Dspring-boot.build-image.imageName=$ECR_REPO/mcp-agent-spring-ai-server
-docker push $ECR_REPO/mcp-agent-spring-ai-server:latest
-
-./mvnw -pl client spring-boot:build-image -Dspring-boot.build-image.imageName=$ECR_REPO/mcp-agent-spring-ai-client
-docker push $ECR_REPO/mcp-agent-spring-ai-client:latest
+./setup-ecr.sh
 ```
+
+This script will:
+- Create ECR repositories if they don't exist
+- Authenticate Docker with ECR
+- Can be run multiple times to refresh authentication
+
+Build and push Docker images to ECR:
+```
+./build-agent.sh
+```
+
+This script will:
+- Verify ECR repositories exist
+- Authenticate with ECR if needed
+- Build Spring Boot Docker images
+- Push images to ECR
+- Show progress for each step
 
 Deploy the Agent:
 ```
-rain deploy infra.cfn mcp-agent-spring-ai
+rain deploy infra.cfn embabel-agent-ecs
 ```
 
 End-to-end Test with `curl`:

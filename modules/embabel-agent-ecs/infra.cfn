@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Spring AI MCP Agent
+Description: MCP Agent with Embabel and Bedrock
 
 Resources:
   ApplicationVPC:
@@ -144,8 +144,8 @@ Resources:
       ExecutionRoleArn: !GetAtt ServerExecutionRole.Arn
 #      TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
-        - Name: mcp-agent-spring-ai-server
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/mcp-agent-spring-ai-server:latest
+        - Name: embabel-agent-server
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/embabel-agent-server:latest
           PortMappings:
             - Name: http
               ContainerPort: 8081
@@ -169,8 +169,8 @@ Resources:
       ExecutionRoleArn: !GetAtt ClientExecutionRole.Arn
       TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
-        - Name: mcp-agent-spring-ai-client
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/mcp-agent-spring-ai-client:latest
+        - Name: embabel-agent-client
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/embabel-agent-client:latest
           PortMappings:
             - ContainerPort: 8080
           Environment:
@@ -199,7 +199,7 @@ Resources:
     Type: AWS::ServiceDiscovery::HttpNamespace
     Properties:
       Name: !Sub ${AWS::StackName}
-      Description: "Namespace for MCP Agent Spring AI services"
+      Description: "Namespace for Embabel Agent services"
 
   MCPServerECSService:
     Type: AWS::ECS::Service
@@ -272,7 +272,7 @@ Resources:
             - !Ref PrivateSubnet1
             - !Ref PrivateSubnet2
       LoadBalancers:
-        - ContainerName: "mcp-agent-spring-ai-client"
+        - ContainerName: "embabel-agent-client"
           ContainerPort: 8080
           LoadBalancerName: !Ref AWS::NoValue
           TargetGroupArn: !Ref TargetGroup
