@@ -1,6 +1,6 @@
-## Model Context Protocol samples
+## Agentic AI Samples
 
-Collection of examples of how to use Model Context Protocol with AWS.
+Collection of examples of how to build Agentic AI with AWS, including Model Context Protocol.
 
 List of modules:
 
