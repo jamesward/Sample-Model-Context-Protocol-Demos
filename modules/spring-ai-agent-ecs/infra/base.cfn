@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Spring AI MCP Agent
+Description: Spring AI MCP Agent - Base Infrastructure
 
 Resources:
   ApplicationVPC:
@@ -120,69 +120,12 @@ Resources:
                   - bedrock:InvokeModel
                 Resource:
                   - arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0
-#      Policies:
-#        - PolicyName: ServiceConnectPolicy
-#          PolicyDocument:
-#            Version: '2012-10-17'
-#            Statement:
-#              - Effect: Allow
-#                Action:
-#                  - servicediscovery:DiscoverInstances
-#                  - servicediscovery:ListNamespaces
-#                  - servicediscovery:ListServices
-#                Resource: '*'
 
-  MCPServerTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
+  ServiceConnectNamespace:
+    Type: AWS::ServiceDiscovery::HttpNamespace
     Properties:
-      Family: !Sub ${AWS::StackName}-task
-      Cpu: '256'
-      Memory: '512'
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !GetAtt ServerExecutionRole.Arn
-#      TaskRoleArn: !GetAtt TaskRole.Arn
-      ContainerDefinitions:
-        - Name: mcp-agent-spring-ai-server
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/mcp-agent-spring-ai-server:latest
-          PortMappings:
-            - Name: http
-              ContainerPort: 8081
-              Protocol: tcp
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref LogGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-
-  MCPClientTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: !Sub ${AWS::StackName}-task
-      Cpu: '256'
-      Memory: '1024'
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !GetAtt ClientExecutionRole.Arn
-      TaskRoleArn: !GetAtt TaskRole.Arn
-      ContainerDefinitions:
-        - Name: mcp-agent-spring-ai-client
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/mcp-agent-spring-ai-client:latest
-          PortMappings:
-            - ContainerPort: 8080
-          Environment:
-            - Name: MCP_SERVICE_URL
-              Value: !Sub http://mcp-server.${AWS::StackName}:8081
-              # todo: better way to get service url
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref LogGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
+      Name: !Sub ${AWS::StackName}
+      Description: "Namespace for MCP Agent Spring AI services"
 
   ServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -194,37 +137,6 @@ Resources:
           ToPort: 8081
           IpProtocol: tcp
           SourceSecurityGroupId: !Ref ClientSecurityGroup
-
-  ServiceConnectNamespace:
-    Type: AWS::ServiceDiscovery::HttpNamespace
-    Properties:
-      Name: !Sub ${AWS::StackName}
-      Description: "Namespace for MCP Agent Spring AI services"
-
-  MCPServerECSService:
-    Type: AWS::ECS::Service
-    Properties:
-      ServiceName: !Sub ${AWS::StackName}-server
-      Cluster: !Ref ECSCluster
-      TaskDefinition: !Ref MCPServerTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
-      ServiceConnectConfiguration:
-        Enabled: true
-        Namespace: !GetAtt ServiceConnectNamespace.Arn
-        Services:
-          - PortName: http
-            DiscoveryName: mcp-server
-            ClientAliases:
-              - Port: 8081
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          AssignPublicIp: ENABLED
-          SecurityGroups:
-            - !Ref ServerSecurityGroup
-          Subnets:
-            - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
 
   ClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -249,33 +161,6 @@ Resources:
           ToPort: 8081
           CidrIp: 0.0.0.0/0
           Description: "Allow traffic to MCP Server on port 8081"
-
-
-  MCPClientECSService:
-    Type: AWS::ECS::Service
-    DependsOn: LoadBalancerListener
-    Properties:
-      ServiceName: !Sub ${AWS::StackName}-client
-      Cluster: !Ref ECSCluster
-      TaskDefinition: !Ref MCPClientTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
-      ServiceConnectConfiguration:
-        Enabled: true
-        Namespace: !GetAtt ServiceConnectNamespace.Arn
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          AssignPublicIp: ENABLED
-          SecurityGroups:
-            - !Ref ClientSecurityGroup
-          Subnets:
-            - !Ref PrivateSubnet1
-            - !Ref PrivateSubnet2
-      LoadBalancers:
-        - ContainerName: "mcp-agent-spring-ai-client"
-          ContainerPort: 8080
-          LoadBalancerName: !Ref AWS::NoValue
-          TargetGroupArn: !Ref TargetGroup
 
   LoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -322,6 +207,80 @@ Resources:
           TargetGroupArn: !Ref TargetGroup
 
 Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref ApplicationVPC
+    Export:
+      Name: !Sub ${AWS::StackName}-vpc-id
+
+  PrivateSubnet1Id:
+    Description: Private Subnet 1 ID
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub ${AWS::StackName}-subnet1-id
+
+  PrivateSubnet2Id:
+    Description: Private Subnet 2 ID
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub ${AWS::StackName}-subnet2-id
+
+  ECSClusterName:
+    Description: ECS Cluster Name
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub ${AWS::StackName}-cluster-name
+
+  LogGroupName:
+    Description: CloudWatch Log Group Name
+    Value: !Ref LogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-log-group
+
+  ServerExecutionRoleArn:
+    Description: Server Execution Role ARN
+    Value: !GetAtt ServerExecutionRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-server-exec-role
+
+  ClientExecutionRoleArn:
+    Description: Client Execution Role ARN
+    Value: !GetAtt ClientExecutionRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-client-exec-role
+
+  TaskRoleArn:
+    Description: Task Role ARN
+    Value: !GetAtt TaskRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-task-role
+
+  ServiceConnectNamespaceArn:
+    Description: Service Connect Namespace ARN
+    Value: !GetAtt ServiceConnectNamespace.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-namespace-arn
+
+  ServerSecurityGroupId:
+    Description: Server Security Group ID
+    Value: !Ref ServerSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-server-sg
+
+  ClientSecurityGroupId:
+    Description: Client Security Group ID
+    Value: !Ref ClientSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-client-sg
+
+  TargetGroupArn:
+    Description: Target Group ARN
+    Value: !Ref TargetGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-target-group
+
   LoadBalancerDNS:
     Description: DNS name of the load balancer
     Value: !GetAtt LoadBalancer.DNSName
+    Export:
+      Name: !Sub ${AWS::StackName}-lb-dns
