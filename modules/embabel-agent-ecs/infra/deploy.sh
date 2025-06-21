@@ -4,29 +4,20 @@
 
 set -e
 
-# Configuration
-BASE_STACK_NAME="embabel-agent-base"
-SERVICES_STACK_NAME="embabel-agent-services"
-REGION="${AWS_REGION:-us-east-1}"
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Source common functions
+source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/ecs-utils.sh"
 
-# Helper functions
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
+# Export environment variables
+export_common_env
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+# Use configuration from common.sh
+BASE_STACK_NAME="$DEFAULT_BASE_STACK_NAME"
+SERVICES_STACK_NAME="$DEFAULT_SERVICES_STACK_NAME"
+REGION="$DEFAULT_REGION"
 
 check_rain() {
     if ! command -v rain &> /dev/null; then
@@ -35,48 +26,40 @@ check_rain() {
     fi
 }
 
-check_docker_images() {
-    log_info "Checking if Docker images exist in ECR..."
-    
-    # Get account ID
-    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-    ECR_REPO="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
-    
-    # Check if repositories exist
-    if ! aws ecr describe-repositories --repository-names embabel-agent-ecs-server --region $REGION &> /dev/null; then
-        log_warn "Server ECR repository doesn't exist. Creating it..."
-        aws ecr create-repository --repository-name embabel-agent-ecs-server --region $REGION
-    fi
-    
-    if ! aws ecr describe-repositories --repository-names embabel-agent-ecs-client --region $REGION &> /dev/null; then
-        log_warn "Client ECR repository doesn't exist. Creating it..."
-        aws ecr create-repository --repository-name embabel-agent-ecs-client --region $REGION
-    fi
-    
-    log_info "ECR repositories are ready"
-}
 
 deploy_base() {
-    log_info "Deploying base infrastructure stack..."
-    rain deploy "$(dirname "$0")/base.cfn" $BASE_STACK_NAME --region $REGION
+    log_info "Deploying base infrastructure stack in region: $REGION"
+    rain deploy infra/base.cfn $BASE_STACK_NAME --region $REGION
     log_info "Base infrastructure deployed successfully!"
 }
 
 deploy_services() {
-    log_info "Deploying services stack..."
-    rain deploy "$(dirname "$0")/services.cfn" $SERVICES_STACK_NAME --region $REGION --params BaseStackName=$BASE_STACK_NAME
-    log_info "Services deployed successfully!"
+    log_info "Deploying services with ordered startup (server first, then client)"
+    
+    # Export environment variables for the deployment script
+    export BASE_STACK_NAME="$BASE_STACK_NAME"
+    export SERVICES_STACK_NAME="$SERVICES_STACK_NAME"
+    export AWS_REGION="$REGION"
+    
+    # Use the bash deployment script
+    "${SCRIPT_DIR}/deploy-services.sh"
 }
 
 update_services() {
-    log_info "Updating services (task definitions and ECS services)..."
-    rain deploy "$(dirname "$0")/services.cfn" $SERVICES_STACK_NAME --region $REGION --params BaseStackName=$BASE_STACK_NAME
-    log_info "Services updated successfully!"
+    log_info "Updating services with ordered startup (server first, then client)"
+    
+    # Export environment variables for the deployment script
+    export BASE_STACK_NAME="$BASE_STACK_NAME"
+    export SERVICES_STACK_NAME="$SERVICES_STACK_NAME"
+    export AWS_REGION="$REGION"
+    
+    # Use the bash deployment script
+    "${SCRIPT_DIR}/deploy-services.sh"
 }
 
 cleanup_services() {
     log_info "Removing services stack..."
-    if aws cloudformation describe-stacks --stack-name $SERVICES_STACK_NAME --region $REGION &> /dev/null; then
+    if check_stack_exists "$SERVICES_STACK_NAME" "$REGION"; then
         rain rm $SERVICES_STACK_NAME --region $REGION
         log_info "Services stack removed"
     else
@@ -86,13 +69,14 @@ cleanup_services() {
 
 cleanup_base() {
     log_info "Removing base infrastructure stack..."
-    if aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --region $REGION &> /dev/null; then
+    if check_stack_exists "$BASE_STACK_NAME" "$REGION"; then
         rain rm $BASE_STACK_NAME --region $REGION
         log_info "Base stack removed"
     else
         log_warn "Base stack not found"
     fi
 }
+
 
 cleanup_all() {
     log_warn "This will remove all infrastructure!"
@@ -107,43 +91,26 @@ cleanup_all() {
 }
 
 get_status() {
-    log_info "Checking stack status..."
-    
-    echo -e "\n${GREEN}Base Infrastructure Stack:${NC}"
-    if aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --region $REGION &> /dev/null; then
-        STATUS=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --region $REGION --query 'Stacks[0].StackStatus' --output text)
-        echo "  Status: $STATUS"
-        
-        if [ "$STATUS" = "CREATE_COMPLETE" ] || [ "$STATUS" = "UPDATE_COMPLETE" ]; then
-            LB_DNS=$(aws cloudformation describe-stacks --stack-name $BASE_STACK_NAME --region $REGION --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDNS`].OutputValue' --output text)
-            echo "  Load Balancer: http://$LB_DNS"
-        fi
-    else
-        echo "  Status: NOT DEPLOYED"
-    fi
-    
-    echo -e "\n${GREEN}Services Stack:${NC}"
-    if aws cloudformation describe-stacks --stack-name $SERVICES_STACK_NAME --region $REGION &> /dev/null; then
-        STATUS=$(aws cloudformation describe-stacks --stack-name $SERVICES_STACK_NAME --region $REGION --query 'Stacks[0].StackStatus' --output text)
-        echo "  Status: $STATUS"
-    else
-        echo "  Status: NOT DEPLOYED"
-    fi
+    # Use external status script
+    export BASE_STACK_NAME="$BASE_STACK_NAME"
+    export SERVICES_STACK_NAME="$SERVICES_STACK_NAME"
+    export AWS_REGION="$REGION"
+    "${SCRIPT_DIR}/status.sh"
 }
 
 build_and_push() {
     log_info "Building and pushing Docker images to ECR..."
-    "$(dirname "$0")/build-push.sh"
+    "${SCRIPT_DIR}/build-push.sh"
 }
 
 setup_ecr() {
     log_info "Setting up ECR repositories..."
-    "$(dirname "$0")/setup-ecr.sh"
+    "${SCRIPT_DIR}/setup-ecr.sh"
 }
 
 aws_checks() {
     log_info "Running AWS configuration checks..."
-    "$(dirname "$0")/aws-checks.sh"
+    "${SCRIPT_DIR}/aws-checks.sh"
 }
 
 show_help() {
@@ -172,6 +139,7 @@ show_help() {
     echo "  ./deploy.sh all              # First time deployment"
     echo "  ./deploy.sh update-services  # Update after code changes"
     echo "  ./deploy.sh cleanup-all      # Complete teardown"
+    echo ""
 }
 
 # Main script logic
@@ -188,13 +156,13 @@ case "$1" in
         build_and_push
         ;;
     all)
-        check_docker_images
+        ensure_ecr_repositories_exist
         deploy_base
         deploy_services
         get_status
         ;;
     base)
-        check_docker_images
+        ensure_ecr_repositories_exist
         deploy_base
         ;;
     services)
@@ -224,3 +192,6 @@ case "$1" in
         exit 1
         ;;
 esac
+
+# Ensure clean exit
+exit 0

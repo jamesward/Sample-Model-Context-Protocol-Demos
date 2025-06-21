@@ -119,7 +119,8 @@ Resources:
                 Action:
                   - bedrock:InvokeModel
                 Resource:
-                  - arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0
+                  - arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0
+                  - arn:aws:bedrock:us-east-1::foundation-model/cohere.embed-english-v3
 
   ServiceConnectNamespace:
     Type: AWS::ServiceDiscovery::HttpNamespace

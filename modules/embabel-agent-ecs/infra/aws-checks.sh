@@ -1,10 +1,8 @@
 #!/bin/bash
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Source common functions
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source "${SCRIPT_DIR}/common.sh"
 
 echo "=================================================="
 echo "AWS Configuration Check for Embabel Agent"
@@ -23,18 +21,14 @@ CURRENT_PROFILE=$(aws configure list-profiles | grep -E "^\*" | sed 's/\* //' ||
 echo "Profile: ${CURRENT_PROFILE}"
 
 # Get current region
-CURRENT_REGION=$(aws configure get region 2>/dev/null || echo "${AWS_REGION:-not set}")
+CURRENT_REGION=$(get_aws_region)
 echo "Region: ${CURRENT_REGION}"
 
 # Check if credentials are configured
-AWS_ACCESS_KEY=$(aws configure get aws_access_key_id 2>/dev/null)
-AWS_SECRET_KEY=$(aws configure get aws_secret_access_key 2>/dev/null)
-
-if [ -n "$AWS_ACCESS_KEY" ] && [ -n "$AWS_SECRET_KEY" ]; then
+if check_aws_credentials; then
     echo -e "Credentials: ${GREEN}✅ Configured${NC}"
 else
     echo -e "Credentials: ${RED}❌ Not configured${NC}"
-    echo -e "${YELLOW}💡 Run 'aws configure' to set up credentials${NC}"
 fi
 
 echo ""
@@ -125,12 +119,10 @@ echo "🐳 ECR Repository Check (for AWS deployment):"
 echo "--------------------------------------------"
 
 # Check if ECR repositories exist
-ECR_CLIENT_REPO="embabel-agent-ecs-client"
-ECR_SERVER_REPO="embabel-agent-ecs-server"
 ECR_REPOS_EXIST=true
 
 echo -n "ECR repository '${ECR_CLIENT_REPO}': "
-if aws ecr describe-repositories --repository-names "${ECR_CLIENT_REPO}" --region "$REQUIRED_REGION" >/dev/null 2>&1; then
+if check_ecr_repository "${ECR_CLIENT_REPO}" "$REQUIRED_REGION"; then
     echo -e "${GREEN}✅ Exists${NC}"
 else
     echo -e "${YELLOW}⚠️  Not found${NC}"
@@ -138,7 +130,7 @@ else
 fi
 
 echo -n "ECR repository '${ECR_SERVER_REPO}': "
-if aws ecr describe-repositories --repository-names "${ECR_SERVER_REPO}" --region "$REQUIRED_REGION" >/dev/null 2>&1; then
+if check_ecr_repository "${ECR_SERVER_REPO}" "$REQUIRED_REGION"; then
     echo -e "${GREEN}✅ Exists${NC}"
 else
     echo -e "${YELLOW}⚠️  Not found${NC}"
