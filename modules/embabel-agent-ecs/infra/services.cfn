@@ -69,9 +69,29 @@ Resources:
           Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/embabel-agent-client:${ClientImageTag}
           PortMappings:
             - ContainerPort: 8080
+          EntryPoint:
+            - "/bin/sh"
+            - "-c"
+          Command:
+            - |
+              # Fetch credentials from task role and export them
+              if [ -n "$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI" ]; then
+                echo "Fetching IAM role credentials..."
+                CREDS=$(curl -s http://169.254.170.2$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)
+                export AWS_ACCESS_KEY_ID=$(echo $CREDS | sed -n 's/.*"AccessKeyId":"\([^"]*\)".*/\1/p')
+                export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | sed -n 's/.*"SecretAccessKey":"\([^"]*\)".*/\1/p')
+                export AWS_SESSION_TOKEN=$(echo $CREDS | sed -n 's/.*"Token":"\([^"]*\)".*/\1/p')
+                echo "Credentials exported successfully"
+              fi
+              # Start the application with the launcher from the buildpack
+              exec /cnb/process/web
           Environment:
             - Name: MCP_SERVICE_URL
               Value: !Sub http://mcp-server.${BaseStackName}:8081
+            - Name: SPRING_PROFILES_ACTIVE
+              Value: bedrock
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
           LogConfiguration:
             LogDriver: awslogs
             Options:

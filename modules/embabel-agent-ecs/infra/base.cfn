@@ -118,9 +118,17 @@ Resources:
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
                 Resource:
+                  # Claude 4 Sonnet models (primary models used by application)
+                  - arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0
+                  - arn:aws:bedrock:us-east-1::foundation-model/us.anthropic.claude-sonnet-4-20250514-v1:0
+                  # Claude 3.5 Sonnet models (keep for backward compatibility)
                   - arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0
+                  # Cohere embedding model
                   - arn:aws:bedrock:us-east-1::foundation-model/cohere.embed-english-v3
+                  # Additional bedrock-converse support (wildcard for all models)
+                  - arn:aws:bedrock:us-east-1::foundation-model/*
 
   ServiceConnectNamespace:
     Type: AWS::ServiceDiscovery::HttpNamespace

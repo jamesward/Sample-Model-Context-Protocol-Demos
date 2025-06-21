@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Spring AI MCP Agent Service Testing Script
+# Embabel Agent ECS Service Testing Script
 # Tests the deployed services through the Application Load Balancer
 
 set -e
@@ -15,7 +15,7 @@ export_common_env
 
 # Main testing function
 test_mcp_services() {
-    log_info "🔍 Finding AWS Load Balancer for Spring AI MCP Agent..."
+    log_info "🔍 Finding AWS Load Balancer for Embabel Agent ECS..."
     
     # Get the load balancer DNS name using common function
     local lb_dns=$(get_stack_output "$BASE_STACK_NAME" "LoadBalancerDNS")
@@ -29,16 +29,16 @@ test_mcp_services() {
     echo ""
     
     # Test the service
-    log_info "🚀 Testing the MCP Agent service..."
+    log_info "🚀 Testing the Embabel Agent service..."
     log_warn "Request:"
     echo "POST http://${lb_dns}/inquire"
-    echo 'Body: {"question": "Get employees that have skills related to Java, but not Java"}'
+    echo 'Body: {"question": "List employees with React skills"}'
     echo ""
     
     log_warn "Response:"
     local response=$(curl -s -X POST --location "http://${lb_dns}/inquire" \
         -H "Content-Type: application/json" \
-        -d '{"question": "Get employees that have skills related to Java, but not Java"}' \
+        -d '{"question": "List employees with React skills"}' \
         -w "\n\nHTTP Status: %{http_code}\n")
     
     # Check if curl was successful
@@ -89,11 +89,11 @@ test_mcp_services() {
     log_warn "ECS Services Status:"
     
     echo "Client Service:"
-    local client_status=$(get_ecs_service_status "$CLUSTER_NAME" "mcp-client-service")
+    local client_status=$(get_ecs_service_status "$CLUSTER_NAME" "embabel-client-service")
     log_info "  $client_status"
     
     echo "Server Service:"
-    local server_status=$(get_ecs_service_status "$CLUSTER_NAME" "mcp-server-service")
+    local server_status=$(get_ecs_service_status "$CLUSTER_NAME" "embabel-server-service")
     log_info "  $server_status"
     
     # Check target health
@@ -130,13 +130,13 @@ test_mcp_services() {
     
     # Check task health using ecs-utils
     log_warn "Checking Task Health:"
-    if check_task_health "mcp-client-service" "Client" "$CLUSTER_NAME"; then
+    if check_task_health "embabel-client-service" "Client" "$CLUSTER_NAME"; then
         log_info "✅ Client service tasks are healthy"
     else
         log_warn "⚠️  Client service tasks may have issues"
     fi
     
-    if check_task_health "mcp-server-service" "Server" "$CLUSTER_NAME"; then
+    if check_task_health "embabel-server-service" "Server" "$CLUSTER_NAME"; then
         log_info "✅ Server service tasks are healthy"
     else
         log_warn "⚠️  Server service tasks may have issues"
@@ -150,10 +150,10 @@ test_mcp_services() {
     fi
     
     print_section "Troubleshooting Commands"
-    echo "1. Check task logs: aws logs tail /ecs/mcp-client --follow"
-    echo "2. Check service events: aws ecs describe-services --cluster $CLUSTER_NAME --services mcp-client-service --query 'services[0].events[:5]'"
-    echo "3. Check task definition: aws ecs describe-task-definition --task-definition mcp-client-task --query 'taskDefinition.containerDefinitions[0].environment'"
-    echo "4. Test direct container access: aws ecs execute-command --cluster $CLUSTER_NAME --task <task-id> --container mcp-client --interactive --command '/bin/sh'"
+    echo "1. Check task logs: aws logs tail /ecs/embabel-client --follow"
+    echo "2. Check service events: aws ecs describe-services --cluster $CLUSTER_NAME --services embabel-client-service --query 'services[0].events[:5]'"
+    echo "3. Check task definition: aws ecs describe-task-definition --task-definition embabel-client-task --query 'taskDefinition.containerDefinitions[0].environment'"
+    echo "4. Test direct container access: aws ecs execute-command --cluster $CLUSTER_NAME --task <task-id> --container embabel-client --interactive --command '/bin/sh'"
     echo "5. Check ECR images: aws ecr describe-images --repository-name $ECR_CLIENT_REPO --query 'imageDetails[:5].[imageTags, imagePushedAt]'"
     
     if [[ "$http_status" != "200" ]]; then
