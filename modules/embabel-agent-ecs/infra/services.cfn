@@ -6,6 +6,23 @@ Parameters:
     Type: String
     Default: embabel-agent-base
     Description: Name of the base infrastructure stack
+  
+  ServerImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag for the MCP server
+  
+  ClientImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag for the MCP client
+  
+  ClientStartupDelay:
+    Type: Number
+    Default: 0
+    Description: Initial desired count for client service (set to 0 to start manually after server is ready)
+    MinValue: 0
+    MaxValue: 1
 
 Resources:
   MCPServerTaskDefinition:
@@ -21,7 +38,7 @@ Resources:
         Fn::ImportValue: !Sub ${BaseStackName}-server-exec-role
       ContainerDefinitions:
         - Name: embabel-agent-server
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/embabel-agent-server:latest
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/embabel-agent-server:${ServerImageTag}
           PortMappings:
             - Name: http
               ContainerPort: 8081
@@ -49,7 +66,7 @@ Resources:
         Fn::ImportValue: !Sub ${BaseStackName}-task-role
       ContainerDefinitions:
         - Name: embabel-agent-client
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/embabel-agent-client:latest
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/embabel-agent-client:${ClientImageTag}
           PortMappings:
             - ContainerPort: 8080
           Environment:
@@ -92,12 +109,13 @@ Resources:
 
   MCPClientECSService:
     Type: AWS::ECS::Service
+    DependsOn: MCPServerECSService
     Properties:
       ServiceName: !Sub ${AWS::StackName}-client
       Cluster: 
         Fn::ImportValue: !Sub ${BaseStackName}-cluster-name
       TaskDefinition: !Ref MCPClientTaskDefinition
-      DesiredCount: 1
+      DesiredCount: !Ref ClientStartupDelay
       LaunchType: FARGATE
       ServiceConnectConfiguration:
         Enabled: true
@@ -126,6 +144,14 @@ Outputs:
   ClientServiceArn:
     Description: MCP Client Service ARN
     Value: !Ref MCPClientECSService
+
+  ServerServiceName:
+    Description: MCP Server Service Name
+    Value: !GetAtt MCPServerECSService.Name
+
+  ClientServiceName:
+    Description: MCP Client Service Name
+    Value: !GetAtt MCPClientECSService.Name
 
   LoadBalancerURL:
     Description: Load Balancer URL

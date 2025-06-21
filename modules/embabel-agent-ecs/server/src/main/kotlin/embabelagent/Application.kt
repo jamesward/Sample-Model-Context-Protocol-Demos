@@ -7,9 +7,20 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.stereotype.Service
+import jakarta.annotation.PostConstruct
+import org.slf4j.LoggerFactory
 
 @SpringBootApplication
 open class Application {
+    private val logger = LoggerFactory.getLogger(Application::class.java)
+    
+    @PostConstruct
+    fun logStartup() {
+        logger.info("=== Embabel Agent MCP Server Starting ===")
+        logger.info("Server will listen on port 8081")
+        logger.info("MCP SSE endpoint available at: /mcp/sse")
+    }
+    
     @Bean
     open fun mcpTools(myTools: MyTools): MethodToolCallbackProvider =
         MethodToolCallbackProvider.builder().toolObjects(myTools).build()

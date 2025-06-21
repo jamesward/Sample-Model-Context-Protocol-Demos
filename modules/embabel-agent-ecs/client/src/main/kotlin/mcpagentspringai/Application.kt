@@ -24,11 +24,33 @@ import org.springframework.context.annotation.Bean
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
+import jakarta.annotation.PostConstruct
+import org.springframework.beans.factory.annotation.Value
+import org.slf4j.LoggerFactory
 
 
 @SpringBootApplication(scanBasePackageClasses = [com.embabel.agent.AgentApplication::class, Application::class])
 @ConfigurationPropertiesScan(basePackageClasses = [com.embabel.agent.AgentApplication::class, Application::class])
 open class Application {
+    private val logger = LoggerFactory.getLogger(Application::class.java)
+    
+    @Value("\${MCP_SERVICE_URL:http://localhost:8081}")
+    private lateinit var mcpServiceUrl: String
+    
+    @Value("\${spring.ai.bedrock.aws.region:us-east-1}")
+    private lateinit var awsRegion: String
+    
+    @Value("\${embabel.models.default-llm:unknown}")
+    private lateinit var defaultLlm: String
+    
+    @PostConstruct
+    fun logStartup() {
+        logger.info("=== Embabel Agent MCP Client Application Starting ===")
+        logger.info("MCP Service URL: $mcpServiceUrl")
+        logger.info("AWS Region: $awsRegion")
+        logger.info("Default LLM: $defaultLlm")
+        logger.info("Environment MCP_SERVICE_URL: ${System.getenv("MCP_SERVICE_URL") ?: "not set"}")
+    }
     @Bean
     open fun embeddingService(bedrockCohereEmbeddingModel: BedrockCohereEmbeddingModel): EmbeddingService =
         EmbeddingService(

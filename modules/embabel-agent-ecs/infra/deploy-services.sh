@@ -49,7 +49,7 @@ setup_log_file "deployment" "${SCRIPT_DIR}/logs"
 
 # Main deployment function
 deploy_services() {
-    log_deployment_section "Starting Spring AI MCP Services Deployment"
+    log_deployment_section "Starting Embabel Agent Services Deployment"
     log_info "Log file: $LOG_FILE"
     log_info "Base Stack: $BASE_STACK_NAME"
     log_info "Services Stack: $SERVICES_STACK_NAME"
