@@ -8,7 +8,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Script configuration
-REPO_PREFIX="mcp-agent-spring-ai"
+REPO_PREFIX="embabel-agent-ecs"
 COMPONENTS=("server" "client")
 
 # Spinner function
@@ -35,6 +35,9 @@ echo "=================================================="
 echo "Build & Push Agent Images to ECR"
 echo "=================================================="
 echo ""
+
+# Change to parent directory (from infra/ to project root)
+cd "$(dirname "$0")/.."
 
 # Check required tools
 if ! command -v aws &> /dev/null; then
@@ -107,7 +110,7 @@ done
 if [ ${#MISSING_REPOS[@]} -gt 0 ]; then
     echo ""
     echo -e "${RED}❌ Missing ECR repositories: ${MISSING_REPOS[*]}${NC}"
-    echo -e "${YELLOW}💡 Run ./setup-ecr.sh first to create repositories and authenticate${NC}"
+    echo -e "${YELLOW}💡 Run ./infra/setup-ecr.sh first to create repositories and authenticate${NC}"
     exit 1
 fi
 
@@ -127,7 +130,7 @@ else
         echo -e "${GREEN}✅ Successfully authenticated${NC}"
     else
         echo -e "${RED}❌ Authentication failed${NC}"
-        echo -e "${YELLOW}💡 Run ./setup-ecr.sh to authenticate${NC}"
+        echo -e "${YELLOW}💡 Run ./infra/setup-ecr.sh to authenticate${NC}"
         exit 1
     fi
 fi
@@ -191,11 +194,8 @@ else
     echo ""
     echo "📝 Next steps:"
     echo "-------------"
-    echo "Deploy the application with Rain:"
-    echo -e "${BLUE}rain deploy infra.cfn spring-ai-agent-ecs${NC}"
-    echo ""
-    echo "Or if updating an existing deployment:"
-    echo -e "${BLUE}rain deploy infra.cfn spring-ai-agent-ecs --yes${NC}"
+    echo "Update services with new images:"
+    echo -e "${BLUE}./infra/deploy.sh update-services${NC}"
 fi
 
 echo "=================================================="

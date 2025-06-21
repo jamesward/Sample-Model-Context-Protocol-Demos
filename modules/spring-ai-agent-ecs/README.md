@@ -43,48 +43,45 @@ flowchart LR
 ## Setup
 
 1. Setup Bedrock in the AWS Console, [request access to Nova Pro](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess)
-1. [Setup auth for local development](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-authentication.html)
+2. [Setup auth for local development](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-authentication.html)
 
-### Helper Scripts
-
-This project includes several helper scripts to simplify AWS setup and deployment:
-
-- **`aws-checks.sh`** - Verifies your AWS environment is properly configured:
-  - Checks AWS CLI authentication and permissions
-  - Verifies Bedrock access and Nova Pro model availability
-  - Validates ECR repositories exist
-  - Tests ECS task execution role permissions
-
-- **`setup-ecr.sh`** - Automates ECR repository creation and Docker authentication:
-  - Creates ECR repositories for both server and client images
-  - Configures Docker to authenticate with ECR
-  - Sets up proper repository lifecycle policies
-  - Provides the ECR_REPO environment variable for builds
-
-- **`build-agent.sh`** - Builds, tags, and deploys the complete application:
-  - Builds Spring Boot Docker images for both server and client
-  - Tags and pushes images to ECR
-  - Deploys the CloudFormation stack using Rain
-  - Outputs the Load Balancer URL for testing
+### Prerequisites
+- Java 21
+- Maven
+- Docker (for AWS deployment)
+- AWS CLI configured with appropriate permissions
+- [Rain CLI](https://github.com/aws-cloudformation/rain) (for AWS deployment)
 
 ## Run Locally
 
+Before running locally, it's recommended to verify your AWS environment:
+
+**Run `infra/aws-checks.sh`** - Verifies your AWS environment is properly configured:
+- Checks AWS CLI authentication and permissions
+- Verifies Bedrock access and Nova Pro model availability
+- Validates ECR repositories exist
+- Tests ECS task execution role permissions
+
+### Start the Applications
+
 Start the MCP Server:
-```
+```bash
 ./mvnw -pl server spring-boot:run
 ```
 
 Start the MCP Client / Agent:
-```
+```bash
 ./mvnw -pl client spring-boot:run
 ```
+
+### Test the Application
 
 Make a request to the server REST endpoint:
 
 In IntelliJ, open the `client.http` file and run the request.
 
 Or via `curl`:
-```
+```bash
 curl -X POST --location "http://localhost:8080/inquire" \
     -H "Content-Type: application/json" \
     -d '{"question": "Get employees that have skills related to Java, but not Java"}'
@@ -92,69 +89,126 @@ curl -X POST --location "http://localhost:8080/inquire" \
 
 ## Run on AWS
 
-### Prerequisites
+### Infrastructure Overview
 
-- [Install Rain](https://github.com/aws-cloudformation/rain)
-- AWS CLI configured with appropriate permissions
-- Docker installed and running
+The infrastructure is split into two CloudFormation stacks for faster, more flexible deployments:
 
-### Quick Setup with Scripts
+1. **Base Stack** (`infra/base.cfn`): VPC, networking, security groups, IAM roles, load balancer (~10 min to deploy)
+2. **Services Stack** (`infra/services.cfn`): ECS task definitions and services (~5 min to deploy/update)
 
-1. **Verify AWS Environment:**
-   ```bash
-   ./aws-checks.sh
-   ```
-   This script will verify that your AWS environment is properly configured for deployment.
+This modular approach allows you to:
+- Update services without touching base infrastructure (5 min vs 60+ min)
+- Debug issues more easily with smaller, focused stacks
+- Deploy and test components incrementally
 
-2. **Setup ECR Repositories:**
-   ```bash
-   ./setup-ecr.sh
-   ```
-   This script will:
-   - Create the required ECR repositories (`mcp-agent-spring-ai-server` and `mcp-agent-spring-ai-client`)
-   - Configure Docker authentication with ECR
-   - Output the ECR_REPO environment variable
+**Note:** If deployment is taking an unusually long time, it's likely that the services deployment has failed. Check the deployment status using `./infra/deploy.sh status` and review the ECS service logs in the AWS Console for troubleshooting.
 
-3. **Build and Deploy:**
-   ```bash
-   ./build-agent.sh
-   ```
-   This script will:
-   - Build both Spring Boot applications as Docker images
-   - Push the images to ECR
-   - Deploy the CloudFormation stack
-   - Output the Load Balancer URL
+### Quick Deployment
 
-### Manual Deployment
+The easiest way to deploy is using the orchestrated deployment script:
 
-If you prefer to run the commands manually:
+```bash
+# 1. Setup ECR repositories
+./infra/deploy.sh setup-ecr
 
-1. Create ECR repositories and authenticate Docker:
-   ```bash
-   aws ecr create-repository --repository-name mcp-agent-spring-ai-server --region us-east-1
-   aws ecr create-repository --repository-name mcp-agent-spring-ai-client --region us-east-1
-   
-   export ECR_REPO=<your account id>.dkr.ecr.us-east-1.amazonaws.com
-   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REPO
-   ```
+# 2. Build and push Docker images
+./infra/deploy.sh build-push
 
-2. Build and push the Docker images:
-   ```bash
-   ./mvnw -pl server spring-boot:build-image -Dspring-boot.build-image.imageName=$ECR_REPO/mcp-agent-spring-ai-server
-   docker push $ECR_REPO/mcp-agent-spring-ai-server:latest
+# 3. Deploy all infrastructure (base + services)
+./infra/deploy.sh all
 
-   ./mvnw -pl client spring-boot:build-image -Dspring-boot.build-image.imageName=$ECR_REPO/mcp-agent-spring-ai-client
-   docker push $ECR_REPO/mcp-agent-spring-ai-client:latest
-   ```
+# 4. Check the deployment worked with 
+./infra/test_services.sh 
 
-3. Deploy the CloudFormation stack:
-   ```bash
-   rain deploy infra.cfn spring-ai-agent-ecs
-   ```
+# For subsequent deployments - just update services after code changes
+./infra/deploy.sh update-services
 
-End-to-end Test with `curl`:
+# Check deployment status
+./infra/deploy.sh status
 ```
+
+### Helper Scripts
+
+This project includes several helper scripts in the `infra/` directory:
+
+#### `infra/aws-checks.sh`
+Verifies your AWS environment is properly configured:
+- Checks AWS CLI authentication and permissions
+- Verifies Bedrock access and Nova Pro model availability
+- Validates ECR repositories exist
+- Tests ECS task execution role permissions
+
+#### `infra/setup-ecr.sh`
+Automates ECR repository creation and Docker authentication:
+- Creates ECR repositories for both server and client images
+- Authenticates Docker with ECR (logs in for docker push)
+- Sets up proper repository lifecycle policies
+- Provides the ECR_REPO environment variable for builds
+- **Important:** Run this script if you get "Your authorization token has expired" errors during docker push
+
+#### `infra/build-push.sh`
+Builds and pushes Docker images to ECR:
+- Builds Spring Boot Docker images for both server and client
+- Tags and pushes images to ECR
+- Handles authentication and error checking
+- Detects expired authentication tokens and suggests running `setup-ecr.sh`
+- **Common failures:** Most push failures are due to expired ECR authentication tokens
+
+#### `infra/test_services.sh`
+Tests the deployed services end-to-end:
+- Retrieves the load balancer URL from CloudFormation
+- Sends a test request to the MCP agent endpoint
+- Validates that the services are responding correctly
+- Provides immediate feedback on deployment success
+
+#### `infra/deploy.sh`
+Main deployment script with the following commands:
+- `aws-checks` - Check AWS configuration and Bedrock access
+- `setup-ecr` - Setup ECR repositories and Docker authentication
+- `build-push` - Build and push Docker images to ECR
+- `all` - Deploy all infrastructure (base + services)
+- `base` - Deploy only base infrastructure
+- `services` - Deploy only services (requires base)
+- `update-services` - Update services after code changes
+- `status` - Show current deployment status
+- `cleanup-services` - Remove services stack only
+- `cleanup-base` - Remove base infrastructure
+- `cleanup-all` - Remove all infrastructure
+- `help` - Show help message
+
+### Manual Deployment (Alternative)
+
+If you prefer to run scripts individually:
+
+1. **Check AWS setup:**
+   ```bash
+   ./infra/aws-checks.sh
+   ```
+
+2. **Setup ECR repositories:**
+   ```bash
+   ./infra/setup-ecr.sh
+   ```
+
+3. **Build and push images:**
+   ```bash
+   ./infra/build-push.sh
+   ```
+
+4. **Deploy infrastructure with Rain:**
+   ```bash
+   # Deploy base infrastructure
+   rain deploy infra/base.cfn spring-ai-mcp-base
+   
+   # Deploy services
+   rain deploy infra/services.cfn spring-ai-mcp-services --params BaseStackName=spring-ai-mcp-base
+   ```
+
+### Testing the Deployment
+
+Once deployed, test with `curl` (replace YOUR_LB_HOST with your load balancer URL):
+```bash
 curl -X POST --location "http://YOUR_LB_HOST/inquire" \
--H "Content-Type: application/json" \
--d '{"question": "Get employees that have skills related to Java, but not Java"}'
+    -H "Content-Type: application/json" \
+    -d '{"question": "Get employees that have skills related to Java, but not Java"}'
 ```

@@ -1,15 +1,16 @@
 #!/bin/bash
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Source common functions
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source "${SCRIPT_DIR}/common.sh"
 
 echo "=================================================="
 echo "AWS Configuration Check for Spring AI Agent"
 echo "=================================================="
 echo ""
+
+# Change to parent directory (from infra/ to project root)
+cd "$(dirname "$0")/.."
 
 # 1. Display current AWS profile and region
 echo "📋 Current AWS Configuration:"
@@ -20,18 +21,14 @@ CURRENT_PROFILE=$(aws configure list-profiles | grep -E "^\*" | sed 's/\* //' ||
 echo "Profile: ${CURRENT_PROFILE}"
 
 # Get current region
-CURRENT_REGION=$(aws configure get region 2>/dev/null || echo "${AWS_REGION:-not set}")
+CURRENT_REGION=$(get_aws_region)
 echo "Region: ${CURRENT_REGION}"
 
 # Check if credentials are configured
-AWS_ACCESS_KEY=$(aws configure get aws_access_key_id 2>/dev/null)
-AWS_SECRET_KEY=$(aws configure get aws_secret_access_key 2>/dev/null)
-
-if [ -n "$AWS_ACCESS_KEY" ] && [ -n "$AWS_SECRET_KEY" ]; then
+if check_aws_credentials; then
     echo -e "Credentials: ${GREEN}✅ Configured${NC}"
 else
     echo -e "Credentials: ${RED}❌ Not configured${NC}"
-    echo -e "${YELLOW}💡 Run 'aws configure' to set up credentials${NC}"
 fi
 
 echo ""
@@ -65,23 +62,12 @@ echo "------------------------------"
 # Required models from application.properties
 NOVA_MODEL="amazon.nova-pro-v1:0"
 
-# Check if we can list models (requires proper credentials and region)
-if ! aws bedrock list-foundation-models --region "$REQUIRED_REGION" --output json >/dev/null 2>&1; then
-    echo -e "${RED}❌ Unable to access Bedrock in region ${REQUIRED_REGION}${NC}"
-    echo -e "${YELLOW}💡 Make sure you have:"
-    echo "   - Valid AWS credentials configured"
-    echo "   - Bedrock access enabled in your AWS account"
-    echo "   - Correct permissions to access Bedrock${NC}"
-    exit 1
-fi
-
-# Check Nova Pro model
-echo -n "Amazon Nova Pro (${NOVA_MODEL}): "
-if aws bedrock list-foundation-models --region "$REQUIRED_REGION" --output json | jq -e ".modelSummaries[] | select(.modelId == \"${NOVA_MODEL}\")" >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ Available${NC}"
+# Check Bedrock access and specific model
+if check_bedrock_access "$REQUIRED_REGION" "$NOVA_MODEL"; then
+    echo -e "Amazon Nova Pro (${NOVA_MODEL}): ${GREEN}✅ Available${NC}"
 else
-    echo -e "${RED}❌ Not found${NC}"
-    echo -e "${YELLOW}💡 Request access at: https://us-east-1.console.aws.amazon.com/bedrock/home?region=${REQUIRED_REGION}#/modelaccess${NC}"
+    echo -e "Amazon Nova Pro (${NOVA_MODEL}): ${RED}❌ Not available${NC}"
+    exit 1
 fi
 
 echo ""
@@ -106,12 +92,10 @@ echo "🐳 ECR Repository Check (for AWS deployment):"
 echo "--------------------------------------------"
 
 # Check if ECR repositories exist
-ECR_CLIENT_REPO="mcp-agent-spring-ai-client"
-ECR_SERVER_REPO="mcp-agent-spring-ai-server"
 ECR_REPOS_EXIST=true
 
 echo -n "ECR repository '${ECR_CLIENT_REPO}': "
-if aws ecr describe-repositories --repository-names "${ECR_CLIENT_REPO}" --region "$REQUIRED_REGION" >/dev/null 2>&1; then
+if check_ecr_repository "${ECR_CLIENT_REPO}" "$REQUIRED_REGION"; then
     echo -e "${GREEN}✅ Exists${NC}"
 else
     echo -e "${YELLOW}⚠️  Not found${NC}"
@@ -119,7 +103,7 @@ else
 fi
 
 echo -n "ECR repository '${ECR_SERVER_REPO}': "
-if aws ecr describe-repositories --repository-names "${ECR_SERVER_REPO}" --region "$REQUIRED_REGION" >/dev/null 2>&1; then
+if check_ecr_repository "${ECR_SERVER_REPO}" "$REQUIRED_REGION"; then
     echo -e "${GREEN}✅ Exists${NC}"
 else
     echo -e "${YELLOW}⚠️  Not found${NC}"
@@ -128,7 +112,7 @@ fi
 
 if [ "$ECR_REPOS_EXIST" = false ]; then
     echo ""
-    echo -e "${YELLOW}💡 To create ECR repositories for AWS deployment, run: ./setup-ecr.sh${NC}"
+    echo -e "${YELLOW}💡 To create ECR repositories for AWS deployment, run: ./infra/setup-ecr.sh${NC}"
 fi
 
 echo ""
@@ -155,7 +139,7 @@ fi
 if [ "$ALL_GOOD" = true ]; then
     echo -e "${GREEN}✅ All core checks passed! You're ready to run the application locally.${NC}"
     if [ "$DEPLOYMENT_READY" = false ]; then
-        echo -e "${YELLOW}⚠️  For AWS deployment: Run ./setup-ecr.sh to create ECR repositories${NC}"
+        echo -e "${YELLOW}⚠️  For AWS deployment: Run ./infra/setup-ecr.sh to create ECR repositories${NC}"
     else
         echo -e "${GREEN}✅ ECR repositories exist - ready for AWS deployment${NC}"
     fi

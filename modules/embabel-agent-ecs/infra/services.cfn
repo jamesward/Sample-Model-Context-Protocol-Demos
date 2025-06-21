@@ -1,0 +1,135 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Embabel Agent ECS - ECS Services
+
+Parameters:
+  BaseStackName:
+    Type: String
+    Default: embabel-agent-base
+    Description: Name of the base infrastructure stack
+
+Resources:
+  MCPServerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-server-task
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: 
+        Fn::ImportValue: !Sub ${BaseStackName}-server-exec-role
+      ContainerDefinitions:
+        - Name: embabel-agent-server
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/embabel-agent-server:latest
+          PortMappings:
+            - Name: http
+              ContainerPort: 8081
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: 
+                Fn::ImportValue: !Sub ${BaseStackName}-log-group
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  MCPClientTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-client-task
+      Cpu: '256'
+      Memory: '1024'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: 
+        Fn::ImportValue: !Sub ${BaseStackName}-client-exec-role
+      TaskRoleArn: 
+        Fn::ImportValue: !Sub ${BaseStackName}-task-role
+      ContainerDefinitions:
+        - Name: embabel-agent-client
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/embabel-agent-client:latest
+          PortMappings:
+            - ContainerPort: 8080
+          Environment:
+            - Name: MCP_SERVICE_URL
+              Value: !Sub http://mcp-server.${BaseStackName}:8081
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: 
+                Fn::ImportValue: !Sub ${BaseStackName}-log-group
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  MCPServerECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AWS::StackName}-server
+      Cluster: 
+        Fn::ImportValue: !Sub ${BaseStackName}-cluster-name
+      TaskDefinition: !Ref MCPServerTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      ServiceConnectConfiguration:
+        Enabled: true
+        Namespace: 
+          Fn::ImportValue: !Sub ${BaseStackName}-namespace-arn
+        Services:
+          - PortName: http
+            DiscoveryName: mcp-server
+            ClientAliases:
+              - Port: 8081
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - Fn::ImportValue: !Sub ${BaseStackName}-server-sg
+          Subnets:
+            - Fn::ImportValue: !Sub ${BaseStackName}-subnet1-id
+            - Fn::ImportValue: !Sub ${BaseStackName}-subnet2-id
+
+  MCPClientECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AWS::StackName}-client
+      Cluster: 
+        Fn::ImportValue: !Sub ${BaseStackName}-cluster-name
+      TaskDefinition: !Ref MCPClientTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      ServiceConnectConfiguration:
+        Enabled: true
+        Namespace: 
+          Fn::ImportValue: !Sub ${BaseStackName}-namespace-arn
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - Fn::ImportValue: !Sub ${BaseStackName}-client-sg
+          Subnets:
+            - Fn::ImportValue: !Sub ${BaseStackName}-subnet1-id
+            - Fn::ImportValue: !Sub ${BaseStackName}-subnet2-id
+      LoadBalancers:
+        - ContainerName: "embabel-agent-client"
+          ContainerPort: 8080
+          LoadBalancerName: !Ref AWS::NoValue
+          TargetGroupArn: 
+            Fn::ImportValue: !Sub ${BaseStackName}-target-group
+
+Outputs:
+  ServerServiceArn:
+    Description: MCP Server Service ARN
+    Value: !Ref MCPServerECSService
+
+  ClientServiceArn:
+    Description: MCP Client Service ARN
+    Value: !Ref MCPClientECSService
+
+  LoadBalancerURL:
+    Description: Load Balancer URL
+    Value: !Sub 
+      - "http://${LoadBalancerDNS}"
+      - LoadBalancerDNS: 
+          Fn::ImportValue: !Sub ${BaseStackName}-lb-dns

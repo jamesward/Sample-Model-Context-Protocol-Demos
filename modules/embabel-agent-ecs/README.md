@@ -1,6 +1,6 @@
 # Sample: MCP Agent with Embabel and Bedrock
 
-TODO: Description
+Provides a sample Embabel MCP Agent with Spring AI using Bedrock that runs on ECS; which includes a server providing employee data and a client agent, both exposed publicly via a Load Balancer.
 
 ```mermaid
 flowchart LR
@@ -42,9 +42,34 @@ flowchart LR
 
 ## Setup
 
-1. Setup Bedrock in the AWS Console, [request access to claude-sonnet-4](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess)
+1. Setup Bedrock in the AWS Console, [request access to Claude Sonnet 4](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess)
 1. [Setup auth for local development](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-authentication.html)
-1. Verify your AWS configuration by running: `./aws-checks.sh`
+
+### Helper Scripts
+
+This project includes several helper scripts in the `infra/` directory to simplify AWS setup and deployment:
+
+- **`infra/aws-checks.sh`** - Verifies your AWS environment is properly configured:
+  - Checks AWS CLI authentication and permissions
+  - Verifies Bedrock access and Claude Sonnet 4 model availability
+  - Validates ECR repositories exist
+  - Tests ECS task execution role permissions
+
+- **`infra/setup-ecr.sh`** - Automates ECR repository creation and Docker authentication:
+  - Creates ECR repositories for both server and client images
+  - Configures Docker to authenticate with ECR
+  - Sets up proper repository lifecycle policies
+  - Provides the ECR_REPO environment variable for builds
+
+- **`infra/build-push.sh`** - Builds and pushes Docker images to ECR:
+  - Builds Spring Boot Docker images for both server and client
+  - Tags and pushes images to ECR
+  - Handles authentication and error checking
+
+- **`infra/deploy.sh`** - Modular deployment script with multiple options:
+  - Orchestrates all deployment tasks
+  - Provides granular control over infrastructure components
+  - Supports partial updates and cleanup operations
 
 ## Run Locally
 
@@ -63,11 +88,6 @@ Start the MCP Client / Agent:
 # The run-client.sh script explicitly exports AWS credentials before running.
 ```
 
-### Troubleshooting
-
-- **AWS Credentials Error**: If you see "Missing required AWS_ACCESS_KEY_ID" or similar errors when running the client, use the `run-client.sh` script instead of running Maven directly. The script exports AWS credentials from your configured profile.
-- **Region Configuration**: The application requires AWS region `us-east-1` for Bedrock model access (configured in application.properties)
-
 Make a request to the server REST endpoint:
 
 In IntelliJ, open the `client.http` file and run the request.
@@ -76,47 +96,151 @@ Or via `curl`:
 ```
 curl -X POST --location "http://localhost:8080/inquire" \
     -H "Content-Type: application/json" \
-    -d '{"question": "Get employees that have AI related skills"}'
+    -d '{"question": "List employees with React skills"}'
 ```
-
-## TODO Below Here
 
 ## Run on AWS
 
-Prereqs:
+### Prerequisites
+
 - [Install Rain](https://github.com/aws-cloudformation/rain)
-- Ensure Docker is running
+- AWS CLI configured with appropriate permissions
+- Docker installed and running
 
-Setup ECR repositories and authenticate Docker:
-```
-./setup-ecr.sh
+### Infrastructure Overview
+
+The infrastructure is now split into two CloudFormation stacks for faster, more flexible deployments:
+
+1. **Base Stack** (`infra/base.cfn`): VPC, networking, security groups, IAM roles, load balancer (~10 min to deploy)
+2. **Services Stack** (`infra/services.cfn`): ECS task definitions and services (~5 min to deploy/update)
+
+This modular approach allows you to:
+- Update services without touching base infrastructure (5 min vs 60+ min)
+- Debug issues more easily with smaller, focused stacks
+- Deploy and test components incrementally
+
+### Quick Setup with Scripts
+
+1. **Verify AWS Environment:**
+   ```bash
+   ./infra/deploy.sh aws-checks
+   ```
+   This will verify that your AWS environment is properly configured for deployment.
+
+2. **Setup ECR Repositories:**
+   ```bash
+   ./infra/deploy.sh setup-ecr
+   ```
+   This will:
+   - Create the required ECR repositories (`embabel-agent-ecs-server` and `embabel-agent-ecs-client`)
+   - Configure Docker authentication with ECR
+   - Output the ECR_REPO environment variable
+
+3. **Build and Deploy Infrastructure:**
+   ```bash
+   # First time - deploy everything
+   ./infra/deploy.sh all
+   
+   # Just update services after code changes
+   ./infra/deploy.sh update-services
+   
+   # Check deployment status
+   ./infra/deploy.sh status
+   ```
+
+### Infrastructure Deployment Commands
+
+The `infra/deploy.sh` script provides these commands:
+
+- `./infra/deploy.sh aws-checks` - Check AWS configuration and Bedrock access
+- `./infra/deploy.sh setup-ecr` - Setup ECR repositories and Docker authentication  
+- `./infra/deploy.sh build-push` - Build and push Docker images to ECR
+- `./infra/deploy.sh all` - Deploy all infrastructure (base + services)
+- `./infra/deploy.sh base` - Deploy only base infrastructure
+- `./infra/deploy.sh services` - Deploy only services (requires base)
+- `./infra/deploy.sh update-services` - Update services after code changes
+- `./infra/deploy.sh status` - Show current deployment status
+- `./infra/deploy.sh cleanup-services` - Remove services stack only
+- `./infra/deploy.sh cleanup-base` - Remove base infrastructure
+- `./infra/deploy.sh cleanup-all` - Remove all infrastructure
+- `./infra/deploy.sh help` - Show help message
+
+### Typical Workflows
+
+**First Time Deployment:**
+```bash
+# Check AWS configuration
+./infra/deploy.sh aws-checks
+
+# Setup ECR repositories
+./infra/deploy.sh setup-ecr
+
+# Build and push images
+./infra/deploy.sh build-push
+
+# Deploy all infrastructure
+./infra/deploy.sh all
 ```
 
-This script will:
-- Create ECR repositories if they don't exist
-- Authenticate Docker with ECR
-- Can be run multiple times to refresh authentication
+**Update After Code Changes:**
+```bash
+# Rebuild and push updated images
+./infra/deploy.sh build-push
 
-Build and push Docker images to ECR:
-```
-./build-agent.sh
+# Update only the services (5 minutes instead of 60+)
+./infra/deploy.sh update-services
 ```
 
-This script will:
-- Verify ECR repositories exist
-- Authenticate with ECR if needed
-- Build Spring Boot Docker images
-- Push images to ECR
-- Show progress for each step
+**Clean Up:**
+```bash
+# Remove just services (keeps base infrastructure)
+./infra/deploy.sh cleanup-services
 
-Deploy the Agent:
+# Or remove everything
+./infra/deploy.sh cleanup-all
 ```
-rain deploy infra.cfn embabel-agent-ecs
-```
+
+### Alternative: Individual Script Usage
+
+If you prefer to run scripts individually instead of using the orchestrated `deploy.sh`:
+
+1. **Check AWS setup:**
+   ```bash
+   ./infra/aws-checks.sh
+   ```
+
+2. **Setup ECR repositories:**
+   ```bash
+   ./infra/setup-ecr.sh
+   ```
+
+3. **Build and push images:**
+   ```bash
+   ./infra/build-push.sh
+   ```
+
+4. **Deploy infrastructure manually with Rain:**
+   ```bash
+   # Deploy base infrastructure
+   rain deploy infra/base.cfn embabel-agent-base
+   
+   # Deploy services
+   rain deploy infra/services.cfn embabel-agent-services --params BaseStackName=embabel-agent-base
+   ```
+
+### Troubleshooting
+
+- **Pre-flight Check**: Run `./infra/deploy.sh aws-checks` to verify your AWS configuration and Bedrock model access
+- **AWS Credentials Error**: If you see "Missing required AWS_ACCESS_KEY_ID" or similar errors, use the `run-client.sh` script instead of running Maven directly. The script exports AWS credentials from your configured profile.
+- **Region Configuration**: The application requires AWS region `us-east-1` for Bedrock model access
+- Ensure AWS credentials are configured for Bedrock access
+- Check that both services are running before testing
+- Server must be started before client
+- Use Spring Boot Actuator endpoints for health checks
 
 End-to-end Test with `curl`:
 ```
 curl -X POST --location "http://YOUR_LB_HOST/inquire" \
 -H "Content-Type: application/json" \
--d '{"question": "Get employees that have skills related to Java, but not Java"}'
+-d '{"question": "List employees with React skills"}'
 ```

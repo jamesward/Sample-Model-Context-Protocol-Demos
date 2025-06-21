@@ -1,15 +1,11 @@
 #!/bin/bash
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source common functions
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source "${SCRIPT_DIR}/common.sh"
 
 # Script configuration
-REPO_PREFIX="mcp-agent-spring-ai"
-REPOS=("${REPO_PREFIX}-server" "${REPO_PREFIX}-client")
+REPOS=("${ECR_SERVER_REPO}" "${ECR_CLIENT_REPO}")
 DELETE_MODE=false
 
 # Parse command line arguments
@@ -49,31 +45,22 @@ echo "=================================================="
 echo ""
 
 # Check required tools
-if ! command -v aws &> /dev/null; then
-    echo -e "${RED}❌ AWS CLI is not installed${NC}"
-    echo -e "${YELLOW}💡 Please install AWS CLI: https://aws.amazon.com/cli/${NC}"
-    exit 1
-fi
-
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}❌ Docker is not installed${NC}"
-    echo -e "${YELLOW}💡 Please install Docker: https://www.docker.com/get-started${NC}"
+if ! check_aws_cli || ! check_aws_credentials || ! check_docker; then
     exit 1
 fi
 
 # Get current AWS configuration
-CURRENT_REGION=$(aws configure get region 2>/dev/null || echo "${AWS_REGION:-not set}")
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
+CURRENT_REGION=$(get_aws_region)
+ACCOUNT_ID=$(get_aws_account_id)
 
 if [ -z "$ACCOUNT_ID" ]; then
-    echo -e "${RED}❌ Unable to get AWS account ID${NC}"
-    echo -e "${YELLOW}💡 Make sure you have valid AWS credentials configured${NC}"
+    log_error "Unable to get AWS account ID"
     exit 1
 fi
 
 if [ "$CURRENT_REGION" = "not set" ]; then
-    echo -e "${RED}❌ AWS region is not set${NC}"
-    echo -e "${YELLOW}💡 Set region with: export AWS_REGION=us-east-1${NC}"
+    log_error "AWS region is not set"
+    log_warn "Set region with: export AWS_REGION=us-east-1"
     exit 1
 fi
 
@@ -109,7 +96,7 @@ if [ "$DELETE_MODE" = true ]; then
             echo -e "${GREEN}✅ Deleted${NC}"
         else
             # Check if repository doesn't exist
-            if ! aws ecr describe-repositories --repository-names "${repo}" --region "${CURRENT_REGION}" &>/dev/null; then
+            if ! check_ecr_repository "${repo}" "${CURRENT_REGION}"; then
                 echo -e "${YELLOW}⚠️  Repository doesn't exist${NC}"
             else
                 echo -e "${RED}❌ Failed to delete${NC}"
@@ -137,17 +124,14 @@ for repo in "${REPOS[@]}"; do
     echo -n "Repository ${repo}: "
     
     # Check if repository already exists
-    if aws ecr describe-repositories --repository-names "${repo}" --region "${CURRENT_REGION}" &>/dev/null; then
+    if check_ecr_repository "${repo}" "${CURRENT_REGION}"; then
         echo -e "${GREEN}✅ Already exists${NC}"
         ((REPOS_EXISTING++))
     else
         # Create the repository
-        if aws ecr create-repository --repository-name "${repo}" --region "${CURRENT_REGION}" --output json > /dev/null 2>&1; then
-            echo -e "${GREEN}✅ Created${NC}"
+        if create_ecr_repository "${repo}" "${CURRENT_REGION}"; then
             ((REPOS_CREATED++))
         else
-            echo -e "${RED}❌ Failed to create${NC}"
-            echo -e "${YELLOW}💡 Check your AWS permissions for ECR${NC}"
             exit 1
         fi
     fi
@@ -166,14 +150,8 @@ echo ""
 echo "🔐 Step 2: Authenticating Docker with ECR"
 echo "----------------------------------------"
 
-ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${CURRENT_REGION}.amazonaws.com"
-echo -n "Logging in to ECR registry... "
-
-if aws ecr get-login-password --region "${CURRENT_REGION}" 2>/dev/null | docker login --username AWS --password-stdin "${ECR_REGISTRY}" >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ Success${NC}"
-else
-    echo -e "${RED}❌ Failed${NC}"
-    echo -e "${YELLOW}💡 Make sure Docker is running and you have ECR permissions${NC}"
+ECR_REGISTRY=$(get_ecr_registry)
+if ! authenticate_docker_ecr "${CURRENT_REGION}"; then
     exit 1
 fi
 
@@ -195,9 +173,9 @@ echo ""
 echo "Next steps:"
 echo ""
 echo -e "${BLUE}1. Build and push Docker images:${NC}"
-echo -e "${BLUE}   ./build-agent.sh${NC}"
+echo -e "${BLUE}   ./infra/build-push.sh${NC}"
 echo ""
-echo -e "${BLUE}2. Deploy with Rain:${NC}"
-echo -e "${BLUE}   rain deploy infra.cfn spring-ai-agent-ecs${NC}"
+echo -e "${BLUE}2. Deploy infrastructure:${NC}"
+echo -e "${BLUE}   ./infra/deploy.sh all${NC}"
 echo ""
 echo -e "${GREEN}💡 Tip: You can run this script again anytime to refresh your Docker ECR authentication${NC}"

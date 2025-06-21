@@ -11,6 +11,9 @@ echo "AWS Configuration Check for Embabel Agent"
 echo "=================================================="
 echo ""
 
+# Change to parent directory (from infra/ to project root)
+cd "$(dirname "$0")/.."
+
 # 1. Display current AWS profile and region
 echo "📋 Current AWS Configuration:"
 echo "-----------------------------"
@@ -144,7 +147,7 @@ fi
 
 if [ "$ECR_REPOS_EXIST" = false ]; then
     echo ""
-    echo -e "${YELLOW}💡 To create ECR repositories for AWS deployment, run: ./setup-ecr.sh${NC}"
+    echo -e "${YELLOW}💡 To create ECR repositories for AWS deployment, run: ./infra/setup-ecr.sh${NC}"
 fi
 
 echo ""
@@ -175,7 +178,7 @@ fi
 if [ "$ALL_GOOD" = true ]; then
     echo -e "${GREEN}✅ All core checks passed! You're ready to run the application locally.${NC}"
     if [ "$DEPLOYMENT_READY" = false ]; then
-        echo -e "${YELLOW}⚠️  For AWS deployment: Run ./setup-ecr.sh to create ECR repositories${NC}"
+        echo -e "${YELLOW}⚠️  For AWS deployment: Run ./infra/setup-ecr.sh to create ECR repositories${NC}"
     else
         echo -e "${GREEN}✅ ECR repositories exist - ready for AWS deployment${NC}"
     fi

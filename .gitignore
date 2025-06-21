@@ -44,3 +44,5 @@ modules/temp-ec2-instance/*
 CLAUDE.md
 .history/
 .idea/
+.image-tags
+logs/

@@ -107,7 +107,7 @@ done
 if [ ${#MISSING_REPOS[@]} -gt 0 ]; then
     echo ""
     echo -e "${RED}❌ Missing ECR repositories: ${MISSING_REPOS[*]}${NC}"
-    echo -e "${YELLOW}💡 Run ./setup-ecr.sh first to create repositories and authenticate${NC}"
+    echo -e "${YELLOW}💡 Run ./infra/setup-ecr.sh first to create repositories and authenticate${NC}"
     exit 1
 fi
 
@@ -127,7 +127,7 @@ else
         echo -e "${GREEN}✅ Successfully authenticated${NC}"
     else
         echo -e "${RED}❌ Authentication failed${NC}"
-        echo -e "${YELLOW}💡 Run ./setup-ecr.sh to authenticate${NC}"
+        echo -e "${YELLOW}💡 Run ./infra/setup-ecr.sh to authenticate${NC}"
         exit 1
     fi
 fi
@@ -191,11 +191,11 @@ else
     echo ""
     echo "📝 Next steps:"
     echo "-------------"
-    echo "Deploy the application with Rain:"
-    echo -e "${BLUE}rain deploy infra.cfn embabel-agent-ecs${NC}"
+    echo "Deploy the application with the deployment script:"
+    echo -e "${BLUE}./infra/deploy.sh all${NC}"
     echo ""
     echo "Or if updating an existing deployment:"
-    echo -e "${BLUE}rain deploy infra.cfn embabel-agent-ecs --yes${NC}"
+    echo -e "${BLUE}./infra/deploy.sh update-services${NC}"
 fi
 
 echo "=================================================="
