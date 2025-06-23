@@ -5,8 +5,8 @@ Strands A2A Inter-Agent Sample
 sequenceDiagram
     participant User
     participant REST as REST API Endpoint
-    participant Agent1 as HR Agent<br/>(with MCP Client)
-    participant Agent2 as Employee Info Agent<br/>(with MCP Client & Server)
+    participant Agent1 as HR Agent<br/>(with A2A Client)
+    participant Agent2 as Employee Info Agent<br/>(with MCP Client & A2A Server)
     participant Bedrock as Amazon Bedrock<br/>(Nova Pro)
     participant MCP_Server as MCP Server
 
@@ -16,7 +16,7 @@ sequenceDiagram
     Agent1->>Bedrock: Initial query
     Bedrock-->>Agent1: Needs additional data
 
-    Agent1->>Agent2: Request employee data<br/>(MCP protocol)
+    Agent1->>Agent2: Request employee data<br/>(A2A protocol)
     Agent2->>Bedrock: Modified query
     Bedrock-->>Agent2: Needs additional data
     Agent2->>MCP_Server: Request employee data<br/>(MCP protocol)
