@@ -1,6 +1,6 @@
-# Sample: MCP Agent with Spring AI and Bedrock
+# Sample: MCP Agent with Embabel and Bedrock
 
-Provides a sample Spring AI MCP Server that runs on ECS; which is used by a Spring AI Agent using Bedrock; which also runs on ECS and is exposed publicly via a Load Balancer.
+Provides a sample Embabel MCP Server that runs on ECS; which is used by an Embabel Agent using Bedrock; which also runs on ECS and is exposed publicly via a Load Balancer.
 
 ```mermaid
 flowchart LR
@@ -9,7 +9,7 @@ flowchart LR
         
         subgraph vpc[VPC]
             server[MCP Server\nECS Service]
-            client[MCP Client / Bedrock Agent\nECS Service]
+            client[MCP Client / Embabel Agent\nECS Service]
         end
         
         subgraph services[AWS Services]
@@ -40,9 +40,13 @@ flowchart LR
     linkStyle default stroke:#666,stroke-width:2px
 ```
 
+## Overview
+
+This project demonstrates an AI-powered microservices architecture using Embabel, a goal-oriented autonomous agent framework that transforms MCP (Model Context Protocol) from a simple tool invocation protocol into a capability layer for intelligent agents. The infrastructure uses a modular CloudFormation approach with separate base and services stacks, enabling fast iteration and zero-downtime deployments.
+
 ## Setup
 
-1. Setup Bedrock in the AWS Console, [request access to Nova Pro](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess)
+1. Setup Bedrock in the AWS Console, [request access to Claude Sonnet 4](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess)
 2. [Setup auth for local development](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-authentication.html)
 
 ### Prerequisites
@@ -58,7 +62,7 @@ Before running locally, it's recommended to verify your AWS environment:
 
 **Run `infra/aws-checks.sh`** - Verifies your AWS environment is properly configured:
 - Checks AWS CLI authentication and permissions
-- Verifies Bedrock access and Nova Pro model availability
+- Verifies Bedrock access and Claude Sonnet 4 model availability
 - Validates ECR repositories exist
 - Tests ECS task execution role permissions
 
@@ -71,7 +75,8 @@ Start the MCP Server:
 
 Start the MCP Client / Agent:
 ```bash
-./mvnw -pl client spring-boot:run
+# Use the provided shell script to ensure AWS credentials are properly exported
+./run-client.sh
 ```
 
 ### Test the Application
@@ -84,7 +89,7 @@ Or via `curl`:
 ```bash
 curl -X POST --location "http://localhost:8080/inquire" \
     -H "Content-Type: application/json" \
-    -d '{"question": "Get employees that have skills related to Java, but not Java"}'
+    -d '{"question": "List employees with React skills"}'
 ```
 
 ## Run on AWS
@@ -134,7 +139,7 @@ This project includes several helper scripts in the `infra/` directory:
 #### `infra/aws-checks.sh`
 Verifies your AWS environment is properly configured:
 - Checks AWS CLI authentication and permissions
-- Verifies Bedrock access and Nova Pro model availability
+- Verifies Bedrock access and Claude Sonnet 4 model availability
 - Validates ECR repositories exist
 - Tests ECS task execution role permissions
 
@@ -198,10 +203,10 @@ If you prefer to run scripts individually:
 4. **Deploy infrastructure with Rain:**
    ```bash
    # Deploy base infrastructure
-   rain deploy infra/base.cfn spring-ai-mcp-base
+   rain deploy infra/base.cfn embabel-agent-base
    
    # Deploy services
-   rain deploy infra/services.cfn spring-ai-mcp-services --params BaseStackName=spring-ai-mcp-base
+   rain deploy infra/services.cfn embabel-agent-services --params BaseStackName=embabel-agent-base
    ```
 
 ### Testing the Deployment
@@ -210,5 +215,5 @@ Once deployed, test with `curl` (replace YOUR_LB_HOST with your load balancer UR
 ```bash
 curl -X POST --location "http://YOUR_LB_HOST/inquire" \
     -H "Content-Type: application/json" \
-    -d '{"question": "Get employees that have skills related to Java, but not Java"}'
+    -d '{"question": "List employees with React skills"}'
 ```

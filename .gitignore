@@ -39,3 +39,10 @@ terraform.rc
 
 # WIP Code
 modules/temp-ec2-instance/*
+
+# Ignore Claude Code and vscode history
+CLAUDE.md
+.history/
+.idea/
+.image-tags
+logs/
