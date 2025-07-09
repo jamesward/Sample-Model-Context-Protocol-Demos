@@ -14,21 +14,25 @@ bedrock_model = BedrockModel(
     temperature=0.9,
 )
 
+def employee_agent(question: str):
+    with employee_mcp_client:
+        tools = employee_mcp_client.list_tools_sync()
+
+        agent = Agent(model=bedrock_model, tools=tools, system_prompt="you must abbreviate employee first names and list all their skills", callback_handler=None)
+
+        return agent(question)
+
 mcp = FastMCP("employee-agent", stateless_http=True, host="0.0.0.0", port=8001)
 
 @mcp.tool()
 def inquire(question: str) -> list[str]:
     """answers questions related to our employees"""
 
-    with employee_mcp_client:
-        tools = employee_mcp_client.list_tools_sync()
-        agent = Agent(model=bedrock_model, tools=tools, system_prompt="you must abbreviate employee first names and list all their skills") #, callback_handler=None)
-
-        return [
-            content["text"]
-            for content in agent(question).message["content"]
-            if "text" in content
-        ]
+    return [
+        content["text"]
+        for content in employee_agent(question).message["content"]
+        if "text" in content
+    ]
 
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
