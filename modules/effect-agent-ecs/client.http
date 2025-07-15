@@ -1,0 +1,34 @@
+### Health Check
+GET http://localhost:8080/health
+
+### Get employees with Java-related skills (but not Java)
+POST http://localhost:8080/inquire
+Content-Type: application/json
+
+{
+  "question": "Get employees that have skills related to Java, but not Java"
+}
+
+### Get all available skills
+POST http://localhost:8080/inquire
+Content-Type: application/json
+
+{
+  "question": "What skills do our employees have?"
+}
+
+### Get employees with specific skill
+POST http://localhost:8080/inquire
+Content-Type: application/json
+
+{
+  "question": "Who are the employees that know Python?"
+}
+
+### Complex query
+POST http://localhost:8080/inquire
+Content-Type: application/json
+
+{
+  "question": "Find employees who have both AWS and Docker skills, and tell me their names"
+}

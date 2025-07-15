@@ -1,0 +1,23 @@
+{
+  "name": "effect-agent-ecs-server",
+  "version": "1.0.0",
+  "description": "Effect MCP Server providing employee skills data",
+  "scripts": {
+    "build": "tsc",
+    "dev-server": "tsx watch src/server.ts",
+    "dev-client": "tsx watch src/client.ts"
+  },
+  "dependencies": {
+    "effect": "3.16.12",
+    "@effect/language-service": "0.24.2",
+    "@effect/platform": "0.87.12",
+    "@effect/platform-node": "0.89.5",
+    "@effect/ai": "0.21.16",
+    "@effect/ai-amazon-bedrock": "0.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}

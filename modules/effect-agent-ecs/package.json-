@@ -1,0 +1,31 @@
+{
+  "name": "effect-agent-ecs",
+  "version": "1.0.0",
+  "description": "Effect AI MCP Agent with Bedrock - TypeScript implementation",
+  "type": "module",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "start:server": "npm run start -w server",
+    "start:client": "npm run start -w client",
+    "clean": "npm run clean --workspaces"
+  },
+  "keywords": [
+    "effect",
+    "ai",
+    "mcp",
+    "bedrock",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
