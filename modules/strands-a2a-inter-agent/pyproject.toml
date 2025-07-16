@@ -2,4 +2,4 @@
 name = "strands-a2a-inter-agent"
 version = "0.0.1"
 requires-python = ">=3.13"
-dependencies = ["mcp", "strands-agents", "fastapi", "uvicorn", "a2a-sdk"]
+dependencies = ["mcp", "strands-agents[a2a]", "strands-agents-tools[a2a_client]", "fastapi", "uvicorn"]
