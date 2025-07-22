@@ -1,4 +1,4 @@
-package mcpagentspringai
+package embabelagent
 
 import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
@@ -6,36 +6,45 @@ import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.api.annotation.usingDefaultLlm
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.createObject
+import com.embabel.agent.api.common.createObjectIfPossible
+import com.embabel.agent.config.annotation.AgentPlatform
+import com.embabel.agent.config.models.BedrockModels
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupDescription
 import com.embabel.agent.core.ToolGroupPermission
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.domain.library.HasContent
 import com.embabel.agent.tools.mcp.McpToolGroup
-import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.*
 import com.fasterxml.jackson.annotation.JsonClassDescription
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.modelcontextprotocol.client.McpSyncClient
-import org.springframework.ai.bedrock.cohere.BedrockCohereEmbeddingModel
 import org.springframework.boot.autoconfigure.SpringBootApplication
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.DependsOn
+import org.springframework.context.annotation.Primary
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 
 
-@SpringBootApplication(scanBasePackageClasses = [com.embabel.agent.AgentApplication::class, Application::class])
-@ConfigurationPropertiesScan(basePackageClasses = [com.embabel.agent.AgentApplication::class, Application::class])
+@SpringBootApplication
+@AgentPlatform(BedrockModels.BEDROCK_PROFILE)
 open class Application {
+
+    @Primary
     @Bean
-    open fun embeddingService(bedrockCohereEmbeddingModel: BedrockCohereEmbeddingModel): EmbeddingService =
-        EmbeddingService(
-            name = "cohere.embed-english-v3",
-            provider = "bedrock-cohere",
-            model = bedrockCohereEmbeddingModel
-        )
+    @DependsOn("bedrockModels")
+    open fun modelProvider(
+        llms: List<Llm>,
+        embeddingServices: List<EmbeddingService>,
+        properties: ConfigurableModelProviderProperties,
+    ): ModelProvider = ConfigurableModelProvider(
+        llms = llms,
+        embeddingServices = embeddingServices,
+        properties = properties,
+    )
 
     @Bean
     open fun employeeToolGroup(mcpSyncClients: List<McpSyncClient>): ToolGroup = McpToolGroup(
@@ -56,6 +65,7 @@ data class Employee(val name: String, val skills: List<String>)
 @JsonDeserialize
 data class Employees(val employees: List<Employee>)
 
+@JsonClassDescription("Write up about the employees and their skills")
 data class Writeup(override val content: String) : HasContent
 
 @Agent(description = "Employee Info Agent")
@@ -65,11 +75,11 @@ class EmployeeAgent {
     fun lookupEmployees(userInput: UserInput): Employees =
         usingDefaultLlm.createObject(userInput.content)
 
-    @AchievesGoal("queries the employees")
+    @AchievesGoal(description = "queries the employees")
     @Action
-    fun queryEmployeeData(employees: Employees): Writeup =
-        usingDefaultLlm.createObject("""
-            Display the following list of employees in a nice way:
+    fun queryEmployeeData(employees: Employees): Writeup? =
+        usingDefaultLlm.createObjectIfPossible("""
+            Convert the following employees to a text format for humans to read:
             $employees
         """.trimIndent())
 
@@ -81,7 +91,7 @@ data class Prompt(val question: String)
 class ConversationalController(val autonomy: Autonomy) {
     @PostMapping("/inquire")
     fun inquire(@RequestBody prompt: Prompt): String =
-        autonomy.chooseAndRunAgent(prompt.question).output.toString()
+        (autonomy.chooseAndRunAgent(prompt.question).output as? Writeup)?.content ?: "No employees with ${prompt.question} skills"
 }
 
 fun main(args: Array<String>) {

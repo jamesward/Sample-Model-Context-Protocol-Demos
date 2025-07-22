@@ -40,3 +40,4 @@ out/
 .kotlin
 
 target/
+/agent-api.log

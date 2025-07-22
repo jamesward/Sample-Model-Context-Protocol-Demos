@@ -54,7 +54,7 @@ Start the MCP Server:
 
 Start the MCP Client / Agent:
 ```
-SPRING_PROFILES_ACTIVE=bedrock ./mvnw -pl client spring-boot:run
+./mvnw -pl client spring-boot:run
 ```
 
 Make a request to the server REST endpoint:
