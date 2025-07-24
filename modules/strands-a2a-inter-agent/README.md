@@ -8,12 +8,12 @@ sequenceDiagram
     participant Agent1 as HR Agent<br/>(with A2A Client)
     participant Agent2 as Employee Info Agent<br/>(with MCP Client & A2A Server)
     participant Bedrock as Amazon Bedrock<br/>(Nova Model)
-    participant MCP_Server as MCP Server
+    participant MCP_Server as Employee Data<br/>(MCP Server)
 
     User->>REST: POST /inquire<br/>(Question about employees)
     REST->>Agent1: Forward question
 
-    Agent1->>Agent2: Request employee data<br/>(MCP protocol)
+    Agent1->>Agent2: Request employee data<br/>(A2A protocol)
     Agent2->>Bedrock: Modified query
     Bedrock-->>Agent2: Needs additional data
     Agent2->>MCP_Server: Request employee data<br/>(MCP protocol)
