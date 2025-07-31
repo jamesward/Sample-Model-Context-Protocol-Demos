@@ -14,7 +14,6 @@ hr_mcp_client = MCPClient(lambda: streamablehttp_client(EMPLOYEE_AGENT_URL))
 bedrock_model = BedrockModel(
     model_id="amazon.nova-micro-v1:0",
     region_name="us-east-1",
-    temperature=0.9,
 )
 
 app = FastAPI(title="HR Agent API")

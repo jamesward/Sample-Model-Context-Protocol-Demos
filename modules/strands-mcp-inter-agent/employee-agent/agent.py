@@ -11,7 +11,6 @@ employee_mcp_client = MCPClient(lambda: streamablehttp_client(EMPLOYEE_INFO_URL)
 bedrock_model = BedrockModel(
     model_id="amazon.nova-micro-v1:0",
     region_name="us-east-1",
-    temperature=0.9,
 )
 
 def employee_agent(question: str):
