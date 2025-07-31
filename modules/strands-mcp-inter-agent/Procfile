@@ -1,0 +1,3 @@
+employee-server: python employee_server/server.py
+employee-agent: python employee_agent/server.py
+hr-agent: python hr_agent/server.py

@@ -70,6 +70,7 @@ curl -X POST --location "http://localhost:8000/inquire" \
 Prereqs:
 - [Create an ECR Repo](https://us-east-1.console.aws.amazon.com/ecr/private-registry/repositories/create?region=us-east-1)
   - `strands-mcp-inter-agent`
+  - `aws ecr create-repository --repository-name strands-mcp-inter-agent --region us-east-1`
 - [Auth `docker` to ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/registry_auth.html)
   - i.e. `aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REPO`
 - [Install Rain](https://github.com/aws-cloudformation/rain)
@@ -79,8 +80,21 @@ Build and push the MCP Server & MCP Client to ECR:
 ```
 export ECR_REPO=<your account id>.dkr.ecr.us-east-1.amazonaws.com
 
-pack build $ECR_REPO/strands-mcp-inter-agent:latest --builder=heroku/builder:24 --publish
+pack build --platform linux/arm64 $ECR_REPO/strands-mcp-inter-agent:latest --builder=heroku/builder:24 --publish
+
+docker buildx build --platform linux/arm64 -t $ECR_REPO/strands-mcp-inter-agent:latest --file Dockerfile-hr_agent --push .
 ```
+
+```
+docker run --platform linux/arm64 -p 8080:8080 \
+  -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+  -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+  -e AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+  -e AWS_REGION="$AWS_REGION" \
+  $ECR_REPO/strands-mcp-inter-agent:latest
+```
+
+
 
 Deploy on AWS:
 ```
