@@ -70,6 +70,8 @@ curl -X POST --location "http://localhost:8000/inquire" \
 Prereqs:
 - [Create an ECR Repo](https://us-east-1.console.aws.amazon.com/ecr/private-registry/repositories/create?region=us-east-1)
   - `strands-mcp-inter-agent`
+  - `aws ecr create-repository --repository-name strands-mcp-inter-agent/employee-server --region us-east-1`
+  - `aws ecr create-repository --repository-name strands-mcp-inter-agent --region us-east-1`
   - `aws ecr create-repository --repository-name strands-mcp-inter-agent --region us-east-1`
 - [Auth `docker` to ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/registry_auth.html)
   - i.e. `aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REPO`
@@ -82,7 +84,17 @@ export ECR_REPO=<your account id>.dkr.ecr.us-east-1.amazonaws.com
 
 pack build --platform linux/arm64 $ECR_REPO/strands-mcp-inter-agent:latest --builder=heroku/builder:24 --publish
 
+pack build --platform linux/arm64 --default-process employee-server --builder heroku/builder:24 --publish $ECR_REPO/strands-mcp-inter-agent/employee-server:latest 
+
 docker buildx build --platform linux/arm64 -t $ECR_REPO/strands-mcp-inter-agent:latest --file Dockerfile-hr_agent --push .
+```
+
+```
+npx aws-cdk bootstrap
+
+npx aws-cdk synth
+
+npx aws-cdk watch
 ```
 
 ```

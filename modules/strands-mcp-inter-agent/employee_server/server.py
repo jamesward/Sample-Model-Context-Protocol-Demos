@@ -1,8 +1,11 @@
+import os
+
 from employee_data import SKILLS, EMPLOYEES
 
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("employee-server", stateless_http=True, host="0.0.0.0", port=8002)
+port = int(os.environ.get('PORT', 8002))
+mcp = FastMCP("employee-server", stateless_http=True, host="0.0.0.0", port=port)
 
 @mcp.tool()
 def get_skills() -> set[str]:
