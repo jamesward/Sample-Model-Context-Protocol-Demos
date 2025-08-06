@@ -5,7 +5,17 @@ from strands import Agent
 from strands.tools.mcp.mcp_client import MCPClient
 from strands.models import BedrockModel
 
-EMPLOYEE_INFO_URL = os.environ.get("EMPLOYEE_INFO_URL", "http://localhost:8002/mcp/")
+port = int(os.environ.get('PORT', 8001))
+
+EMPLOYEE_INFO_ARN=os.environ.get("EMPLOYEE_INFO_ARN", None)
+REGION=os.environ.get("AWS_REGION", "us-east-1")
+if EMPLOYEE_INFO_ARN is None:
+    EMPLOYEE_INFO_URL = "http://localhost:8002/mcp/"
+else:
+    EMPLOYEE_INFO_URL =  f"https://bedrock-agentcore.{REGION}.amazonaws.com/runtimes/{EMPLOYEE_INFO_ARN.replace(':', '%3A').replace('/', '%2F')}/invocations?qualifier=DEFAULT"
+
+print(EMPLOYEE_INFO_URL)
+
 employee_mcp_client = MCPClient(lambda: streamablehttp_client(EMPLOYEE_INFO_URL))
 
 bedrock_model = BedrockModel(
@@ -21,7 +31,7 @@ def employee_agent(question: str):
 
         return agent(question)
 
-mcp = FastMCP("employee-agent", stateless_http=True, host="0.0.0.0", port=8001)
+mcp = FastMCP("employee-agent", stateless_http=True, host="0.0.0.0", port=port)
 
 @mcp.tool()
 def inquire(question: str) -> list[str]:

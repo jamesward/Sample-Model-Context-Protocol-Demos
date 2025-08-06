@@ -12,6 +12,7 @@ from constructs import Construct
 import cdk_ecr_deployment
 
 
+# todo: rebuild on source changes
 class BuildpackImageAsset(Construct):
     def __init__(self, scope: Construct, construct_id: str, *,
                  source_path: str,
@@ -22,7 +23,7 @@ class BuildpackImageAsset(Construct):
                  **kwargs):
         super().__init__(scope, construct_id, **kwargs)
 
-        self.repo = aws_ecr.Repository(self, "Repo",
+        repo = aws_ecr.Repository(self, "Repo",
                                        removal_policy=aws_cdk.RemovalPolicy.DESTROY,
                                        empty_on_delete=True,
                                        lifecycle_rules=[
@@ -35,8 +36,10 @@ class BuildpackImageAsset(Construct):
 
         source_asset = aws_s3_assets.Asset(self, "BuildSource",
                                            path=source_path,
-                                           exclude=[".git", "cdk.out", ".venv", ".idea"]  # todo: yuck
+                                           exclude=[".git", "cdk.out", ".venv", ".idea", "infra"]  # todo: yuck
                                            )
+
+        self.ecr_repo=repo.repository_uri_for_tag(source_asset.s3_object_key.split("/")[-1].removesuffix(".zip"))
 
         build_project = aws_codebuild.Project(self, "Project",
                                               environment=aws_codebuild.BuildEnvironment(
@@ -56,7 +59,7 @@ class BuildpackImageAsset(Construct):
                                                       value=aws_cdk.Stack.of(self).region
                                                   ),
                                                   "ECR_REPO": aws_codebuild.BuildEnvironmentVariable(
-                                                      value=self.repo.repository_uri
+                                                      value=self.ecr_repo
                                                   ),
                                                   "BUILDER": aws_codebuild.BuildEnvironmentVariable(
                                                       value=builder
@@ -85,7 +88,6 @@ class BuildpackImageAsset(Construct):
                                                       },
                                                       "build": {
                                                           "commands": [
-                                                              "ls -al",
                                                               # todo: non-arm also
                                                               "pack build --platform linux/arm64 --default-process $DEFAULT_PROCESS --builder $BUILDER --run-image $RUN_IMAGE --publish $ECR_REPO"
                                                           ]
@@ -96,7 +98,7 @@ class BuildpackImageAsset(Construct):
 
         source_asset.grant_read(build_project.role)
 
-        self.repo.grant_pull_push(build_project.role)
+        repo.grant_pull_push(build_project.role)
 
         custom_resource_codebuild_startandwait_repo = aws_ecr.Repository(
             self,
@@ -149,5 +151,6 @@ class BuildpackImageAsset(Construct):
             service_token=custom_resource_lambda.function_arn,
             properties={
                 "ProjectName": build_project.project_name,
+                "ECR_REPO": self.ecr_repo, # rebuild when repo changes
             },
         )

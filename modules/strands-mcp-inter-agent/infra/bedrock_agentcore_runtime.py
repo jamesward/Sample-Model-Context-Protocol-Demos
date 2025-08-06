@@ -10,10 +10,14 @@ from constructs import Construct
 
 import cdk_ecr_deployment
 
+
 class BedrockAgentCoreRuntime(Construct):
     def __init__(self, scope: Construct, construct_id: str, *,
                  repository: str,
                  protocol: str,
+                 discovery_url: str = None,
+                 client_id: str = None,
+                 env: dict = None,
                  **kwargs):
         super().__init__(scope, construct_id, **kwargs)
 
@@ -30,18 +34,21 @@ class BedrockAgentCoreRuntime(Construct):
             ]
         )
 
+        cfn_customresource_agentcore_image_tag="e55e62a"
+
         ecr_deployment = cdk_ecr_deployment.ECRDeployment(self, "AgentCoreCustomResourceImage",
-                                                          src=cdk_ecr_deployment.DockerImageName(
-                                                              "ghcr.io/jamesward/cfn-customresource-agentcore"),
+                                                          src=cdk_ecr_deployment.DockerImageName(f"ghcr.io/jamesward/cfn-customresource-agentcore:{cfn_customresource_agentcore_image_tag}"),
                                                           dest=cdk_ecr_deployment.DockerImageName(
-                                                              agentcore_custom_resource_repo.repository_uri)
+                                                              agentcore_custom_resource_repo.repository_uri_for_tag(cfn_customresource_agentcore_image_tag)
+                                                          )
                                                           )
 
         custom_resource_lambda = aws_lambda.DockerImageFunction(
             self,
             "AgentCoreCustomResourceLambda",
             code=aws_lambda.DockerImageCode.from_ecr(
-                agentcore_custom_resource_repo
+                agentcore_custom_resource_repo,
+                tag_or_digest=cfn_customresource_agentcore_image_tag
             ),
             memory_size=256,
         )
@@ -172,7 +179,6 @@ class BedrockAgentCoreRuntime(Construct):
         agentcore_runtime_role = aws_iam.Role(
             self,
             "BedrockAgentCoreRuntimeRole",
-            # role_name="BedrockAgentCoreRuntimeRole",
             assumed_by=aws_iam.ServicePrincipal("bedrock-agentcore.amazonaws.com"),
             inline_policies={
                 "permissions": permissions_policy
@@ -180,8 +186,6 @@ class BedrockAgentCoreRuntime(Construct):
             description="Execution role for Amazon Bedrock AgentCore Runtime"
         )
 
-        # todo: role for MCP
-        # todo: create construct
         self.resource = aws_cdk.CustomResource(
             self,
             "AgentCoreRuntime",
@@ -189,6 +193,18 @@ class BedrockAgentCoreRuntime(Construct):
             properties={
                 "ContainerUri": repository,
                 "RoleArn": agentcore_runtime_role.role_arn,
-                "ServerProtocol": protocol
+                "ServerProtocol": protocol,
+                "ImageTag": cfn_customresource_agentcore_image_tag, # to trigger update if the lambda changes
+                **({} if env is None else {"Env": env}),
+                **({} if discovery_url is None else {
+                    "AuthorizerConfiguration": {
+                        "customJWTAuthorizer": {
+                            "discoveryUrl": discovery_url,
+                            **({"allowedClients": [client_id]} if client_id is not None else {})
+                        }
+                    }
+                })
             },
         )
+
+        self.resource.node.add_dependency(custom_resource_lambda)
