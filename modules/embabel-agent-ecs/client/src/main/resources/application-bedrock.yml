@@ -1,0 +1,33 @@
+spring:
+  ai:
+    bedrock:
+      aws:
+        region: ${AWS_REGION}
+        access-key: ${AWS_ACCESS_KEY_ID}
+        secret-key: ${AWS_SECRET_ACCESS_KEY}
+
+embabel:
+  models:
+    bedrock:
+      models:
+        # US region models (using us-east-1)
+        - name: us.anthropic.claude-sonnet-4-20250514-v1:0
+          knowledge-cutoff: 2025-03-01
+          input-price: 3.0
+          output-price: 15.0
+        - name: anthropic.claude-sonnet-4-20250514-v1:0
+          knowledge-cutoff: 2025-03-01
+          input-price: 3.0
+          output-price: 15.0
+        - name: anthropic.claude-sonnet-4-20250514-v1
+          knowledge-cutoff: 2025-03-01
+          input-price: 3.0
+          output-price: 15.0
+        - name: bedrock-converse
+          knowledge-cutoff: 2025-03-01
+          input-price: 3.0
+          output-price: 15.0
+        - name: cohere.embed-english-v3
+          knowledge-cutoff: 2024-01-01
+          input-price: 0.1
+          output-price: 0.0

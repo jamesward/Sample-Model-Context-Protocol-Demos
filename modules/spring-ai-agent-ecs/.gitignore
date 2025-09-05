@@ -40,3 +40,8 @@ out/
 .kotlin
 
 target/
+
+### Build artifacts ###
+infra/.image-tags
+infra/build-*.log
+infra/push-*.log
